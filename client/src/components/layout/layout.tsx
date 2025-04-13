@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { useAuth } from '@/lib/auth';
-import Sidebar from './sidebar';
+import { useAuth } from '@/hooks/use-auth';
+import {Sidebar} from './sidebar';
 import MobileSidebar from './mobile-sidebar';
 import { useLocation } from 'wouter';
 import UserDropdown from './user-dropdown';

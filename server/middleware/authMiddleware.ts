@@ -22,6 +22,7 @@ export async function authenticateViaJWT(req: Request, res: Response, next: Next
   const authHeader = req.headers.authorization;
   const path = req.originalUrl;
 
+  console.log("===========================================");
   console.log(`🔐 [AUTH] Incoming request to ${req.method} ${path}`);
   console.log(`🔐 [AUTH] Authorization header:`, authHeader);
 

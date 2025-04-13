@@ -7,95 +7,92 @@ async function throwIfResNotOk(res: Response) {
   }
 }
 
-const redirectToLogin = () => {
-  console.warn("[apiRequest] Redirecting to login.");
-  localStorage.removeItem("access_token");
-  window.location.href = "/login";
-  throw new Error("Session expired or missing. Redirecting to login.");
-};
+let isRefreshing = false;
+let refreshPromise: Promise<string | null> | null = null;
+let subscribers: ((token: string | null) => void)[] = [];
 
-const getAccessToken = (): string => {
-  const token = localStorage.getItem("access_token");
-  if (!token) {
-    redirectToLogin();
-    throw new Error("Missing token");
+function subscribeToTokenRefresh(cb: (token: string | null) => void) {
+  subscribers.push(cb);
+}
+
+function notifySubscribers(token: string | null) {
+  subscribers.forEach((cb) => cb(token));
+  subscribers = [];
+}
+
+async function refreshAccessToken(): Promise<string | null> {
+  try {
+    const res = await fetch("/api/refresh", {
+      method: "POST",
+      credentials: "include", // so cookies (refreshToken) are sent
+    });
+
+    if (!res.ok) throw new Error("Failed to refresh");
+
+    const data = await res.json();
+    localStorage.setItem("access_token", data.accessToken);
+    return data.accessToken;
+  } catch (err) {
+    console.error("🔒 Refresh failed:", err);
+    localStorage.removeItem("access_token");
+    return null;
   }
-  return token;
-};
+}
 
 export async function apiRequest(
   method: string,
   url: string,
-  data?: unknown | undefined,
+  data?: unknown | undefined
 ): Promise<Response> {
-  // Internal function for retrying request
-  const makeRequest = async (accessToken?: string): Promise<Response> => {
+  const attemptRequest = async (token: string | null) => {
     const headers: Record<string, string> = {};
 
-    if (data) {
-      headers["Content-Type"] = "application/json";
-    }
-
-    if (accessToken) {
-      headers["Authorization"] = `Bearer ${accessToken}`;
-    }
+    if (data) headers["Content-Type"] = "application/json";
+    if (token) headers["Authorization"] = `Bearer ${token}`;
 
     const res = await fetch(url, {
       method,
       headers,
       body: data ? JSON.stringify(data) : undefined,
-      credentials: "include", // to send refresh token via cookie
+      credentials: "include",
     });
 
     return res;
   };
 
-  
-  let accessToken = getAccessToken();
+  let token = localStorage.getItem("access_token");
+  let res = await attemptRequest(token);
 
-  let res = await makeRequest(accessToken);
-
-  // Handle access token expiration
-  if (res.status === 401 || res.status === 403) {
-    console.warn(`[apiRequest] Access token might be expired. Attempting refresh...`);
-
-    const refreshRes = await fetch("/api/refresh", {
-      method: "POST",
-      credentials: "include",
-    });
-
-    if (refreshRes.ok) {
-      try {
-        const json = await refreshRes.json();
-        const newAccessToken = typeof json.access_token === "string" ? json.access_token : null;
-
-        if (!newAccessToken) {
-          redirectToLogin();
-          throw new Error("Invalid access_token in refresh response");
-        }
-
-        // Store and retry original request with new token
-        localStorage.setItem("access_token", newAccessToken);
-        res = await makeRequest(newAccessToken);
-
-        if (!res.ok) await throwIfResNotOk(res);
-        return res;
-      } catch (err) {
-        console.error(`[apiRequest] Failed to parse refresh response`, err);
-      }
-    }
-
-    // ❌ Refresh failed → redirect to login
-    console.warn(`[apiRequest] Refresh failed. Redirecting to login.`);
-    localStorage.removeItem("access_token");
-    redirectToLogin();
-    throw new Error("Session expired. Redirecting to login.");
+  if (res.status !== 403) {
+    await throwIfResNotOk(res);
+    return res;
   }
 
-  
+  // We got 403, so access token might be expired
+  if (!isRefreshing) {
+    isRefreshing = true;
+    refreshPromise = refreshAccessToken();
+    const newToken = await refreshPromise;
+    isRefreshing = false;
+    notifySubscribers(newToken);
+  }
+
+  // Wait for the token refresh to complete
+  const newToken = await new Promise<string | null>((resolve) => {
+    subscribeToTokenRefresh(resolve);
+  });
+
+  if (!newToken) {
+    // Refresh failed, logout or redirect
+    throw new Error("Session expired. Please login again.");
+  }
+
+  // Retry the original request
+  res = await attemptRequest(newToken);
   await throwIfResNotOk(res);
   return res;
 }
+
 
 type UnauthorizedBehavior = "returnNull" | "throw";
 export const getQueryFn: <T>(options: {
