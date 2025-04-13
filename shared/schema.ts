@@ -30,11 +30,11 @@ export const ExpenseStatus = {
 
 export type ExpenseStatusType = typeof ExpenseStatus[keyof typeof ExpenseStatus];
 
-// Auth Session model
-export const authSessions = pgTable("auth_sessions", {
+// Session Token model
+export const sessionToken = pgTable("session_token", {
   id: serial("id").primaryKey(),
   userId: integer("user_id").notNull(),
-  sessionToken: text("session_token").notNull().unique(),
+  refreshToken: text("refresh_token").notNull().unique(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   expiresAt: timestamp("expires_at").notNull(),
 });
@@ -109,9 +109,9 @@ export const activityLogs = pgTable("activity_logs", {
 });
 
 // Insert schemas
-export const insertAuthSessionSchema = createInsertSchema(authSessions).pick({
+export const insertSessionTokenSchema = createInsertSchema(sessionToken).pick({
   userId: true,
-  sessionToken: true,
+  refreshToken: true,
   expiresAt: true,
 });
 
@@ -183,8 +183,8 @@ export const expenseFormSchema = insertExpenseSchema.extend({
 });
 
 // Types for database operations
-export type InsertAuthSession = z.infer<typeof insertAuthSessionSchema>;
-export type AuthSession = typeof authSessions.$inferSelect;
+export type InsertSessionToken = z.infer<typeof insertSessionTokenSchema>;
+export type SessionToken = typeof sessionToken.$inferSelect;
 
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type User = typeof users.$inferSelect;

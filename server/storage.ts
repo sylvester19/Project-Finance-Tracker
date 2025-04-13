@@ -1,11 +1,10 @@
 import {
-  AuthSession, User, InsertUser, users,
+  SessionToken, sessionToken, User, InsertUser, users,
   Client, InsertClient, clients,
   Project, InsertProject, projects,
   Expense, InsertExpense, expenses,
   ActivityLog, InsertActivityLog, activityLogs,
   ExpenseStatus, UserRole, UserRoleType, ExpenseCategoryType,
-  authSessions
 } from "@shared/schema";
 import { eq, sql } from 'drizzle-orm';
 import type { ProjectStatusType, ExpenseStatusType } from "@shared/schema";
@@ -18,10 +17,10 @@ export interface IStorage {
   // Session store for Express session
   sessionStore: session.Store;
 
-  // Auth Session Operation
-  createSession(userId: number, sessionToken: string): Promise<AuthSession>;
-  getSessionByToken(sessionToken: string): Promise<AuthSession | undefined>;
-  deleteSession(sessionToken: string): Promise<void>;
+  // Session Token Operation
+  saveRefreshToken(userId: number, refreshToken: string, expiresAt: Date): Promise<void>;
+  getRefreshToken(refreshToken: string): Promise<SessionToken | undefined>; 
+  deleteRefreshToken(refreshToken: string): Promise<void>;
 
   // User operations
   getUser(id: number): Promise<User | undefined>;
@@ -69,7 +68,7 @@ export interface IStorage {
 
 // In-memory implementation
 export class MemStorage implements IStorage {
-  private sessions: Map<string, number>;
+  private sessionTokens: Map<string, SessionToken>;
   private users: Map<number, User>;
   private clients: Map<number, Client>;
   private projects: Map<number, Project>;
@@ -81,9 +80,12 @@ export class MemStorage implements IStorage {
   private currentExpenseId: number;
   private currentActivityLogId: number;
   public sessionStore: session.Store;
+  private generateId(): number {
+    return Math.floor(Math.random() * 1000000);
+  }
 
   constructor() {
-    this.sessions = new Map();
+    this.sessionTokens = new Map();
     this.users = new Map();
     this.clients = new Map();
     this.projects = new Map();
@@ -304,38 +306,26 @@ export class MemStorage implements IStorage {
     });
   }
 
-  // Auth Session Operation
-  async createSession(userId: number, sessionToken: string): Promise<AuthSession> {
-    const { db } = await import('./db');
-  
-    const [session] = await db
-      .insert(authSessions)
-      .values({
-        userId,
-        sessionToken,
-        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days from now
-      })
-      .returning();
-  
-    return session;
-  }
-  
-
-  async getSessionByToken(sessionToken: string): Promise<AuthSession | undefined> {
-    const { db } = await import('./db');
-  
-    const [session] = await db
-      .select()
-      .from(authSessions)
-      .where(eq(authSessions.sessionToken, sessionToken))
-      .limit(1);
-  
-    return session; // Will return undefined if not found
+  // Session Token Operation
+  async saveRefreshToken(userId: number, refreshToken: string, expiresAt: Date): Promise<void> {
+    const newSessionToken: SessionToken = {
+      id: this.generateId(), // Use UUID for unique IDs
+      userId: userId,
+      refreshToken: refreshToken,
+      createdAt: new Date(), // Or use a more appropriate creation time
+      expiresAt: expiresAt,
+    };
+    this.sessionTokens.set(refreshToken, newSessionToken); // Key by refreshToken
   }
 
-  async deleteSession(sessionToken: string): Promise<void> {
-    this.sessions.delete(sessionToken);
+  async getRefreshToken(refreshToken: string): Promise<SessionToken | undefined> {
+    return this.sessionTokens.get(refreshToken); // Key by refreshToken
   }
+
+  async deleteRefreshToken(refreshToken: string): Promise<void> {
+    this.sessionTokens.delete(refreshToken); // Key by refreshToken
+  }
+
 
   // User operations
   async getUser(id: number): Promise<User | undefined> {
@@ -630,31 +620,27 @@ export class DatabaseStorage implements IStorage {
     });
   }
   
-  // Auth Session Operation
-  async createSession(userId: number, sessionToken: string): Promise<AuthSession> {
+  // Session Token Operation
+  async saveRefreshToken(userId: number, refreshToken: string, expiresAt: Date): Promise<void> {
     const { db } = await import('./db');
-    const [session] = await db
-    .insert(authSessions)
-    .values({
-      userId: userId,
-      sessionToken: sessionToken,
-      expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days from now
-    })
-    .returning(); 
-    return session;
+    await db.insert(sessionToken).values({  // Use sessionToken table
+      userId,
+      refreshToken, // Use refreshToken field name
+      expiresAt,
+    });
   }
 
-  async getSessionByToken(sessionToken: string): Promise<AuthSession | undefined> {
+  async getRefreshToken(refreshToken: string): Promise<SessionToken | undefined> {
     const { db } = await import('./db');
-    const [authSession] = await db.select().from(authSessions).where(eq(authSessions.sessionToken, sessionToken));
-    return authSession;
+    const [token] = await db.select().from(sessionToken).where(eq(sessionToken.refreshToken, refreshToken)); // Use sessionToken table and refreshToken field
+    return token; // Return the entire sessionToken object or undefined
   }
 
-  async deleteSession(sessionToken: string): Promise<void> {
+  async deleteRefreshToken(refreshToken: string): Promise<void> {
     const { db } = await import('./db');
-    await db.delete(authSessions).where(eq(authSessions.sessionToken, sessionToken));
+    await db.delete(sessionToken).where(eq(sessionToken.refreshToken, refreshToken)); // Use sessionToken table and refreshToken field
   }
-
+  
   // User operations
   async getUser(id: number): Promise<User | undefined> {
     const { db } = await import('./db');

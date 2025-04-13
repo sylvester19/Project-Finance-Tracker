@@ -1,46 +1,45 @@
 import { Request, Response, NextFunction } from "express";
 import { storage } from "../server/storage";
-import { UserRoleType } from "../shared/schema"
+import { UserRoleType } from "../shared/schema";
+import jwt from "jsonwebtoken";
+import dotenv from "dotenv";
 
-export async function authenticateViaSession(req: Request, res: Response, next: NextFunction) {
-  const session = req.session;
+dotenv.config();
 
-  // Step 1: Check if session token exists
-  if (!session?.sessionToken) {
-    return res.redirect("/login"); // 🔁 Redirect if no session
-  }
-
-  // Step 2: Validate session token in your DB
-  const authSession = await storage.getSessionByToken(session.sessionToken);
-  
-  // Step 3: If session is missing or expired → delete session & redirect
-  if (!authSession || new Date(authSession.expiresAt) < new Date()) {
-    if (session.sessionToken) {
-      await storage.deleteSession(session.sessionToken);
-    }
-    req.session.destroy(() => {}); // Clean server-side session
-    return res.redirect("/login");
-  }
-
-  // Step 4: Check if user exists in DB
-  const user = await storage.getUser(authSession.userId);
-  if (!user) {
-    await storage.deleteSession(session.sessionToken);
-    req.session.destroy(() => {}); // Destroy session
-    return res.redirect("/register"); // 🧭 Redirect to signup
-  }
-
-  // Step 4: Attach useful info to session for downstream access
-  session.userId = user.id;
-  session.role = user.role;
-
-  next();
+interface DecodedToken {
+  userId: string;
+  role: UserRoleType;
 }
 
 
+const JWT_SECRET: string = (() => {
+  const key = process.env.MY_JWT_SECRET;
+  if (!key) throw new Error("Missing MY_JWT_SECRET in environment variables");
+  return key;
+})();
+
+
+export async function authenticateViaJWT(req: Request, res: Response, next: NextFunction) {
+  const authHeader = req.headers["authorization"];
+  const token = authHeader?.split(" ")[1];
+
+  if (!token) {
+    return res.status(401).json({ message: "Access token required" });
+  }
+
+  try {
+    const decoded = jwt.verify(token, JWT_SECRET) as DecodedToken;
+    req.userId = parseInt(decoded.userId);
+    req.role = decoded.role;
+    next();
+  } catch (err) {
+    return res.status(403).json({ message: "Invalid or expired access token" });
+  }
+}
+
 export function authorizeRole(allowedRoles: UserRoleType[]) {
   return (req: Request, res: Response, next: NextFunction) => {
-    const { role, userId } = req.session || {};
+    const { role, userId } = req; 
 
     if (!role || !userId || !allowedRoles.includes(role)) {
       return res.status(403).json({ message: "Forbidden: insufficient permissions" });

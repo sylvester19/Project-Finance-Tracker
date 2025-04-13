@@ -1,7 +1,41 @@
-import { Express, Request, Response } from "express";
-import session from "express-session";
+import { Express } from "express";
 import { storage } from "./storage";
-import { hashPassword, createSessionToken } from "../utils/session";
+import { hashPassword } from "../utils/session";
+import * as jwt from 'jsonwebtoken';
+import dotenv from "dotenv";
+import { comparePasswords } from "../utils/session";
+import { UserRoleType } from "@shared/schema";
+
+dotenv.config();
+
+interface DecodedToken {
+  userId: string;
+  role: UserRoleType;
+}
+
+const JWT_SECRET = process.env.MY_JWT_SECRET!;
+const REFRESH_TOKEN_SECRET = process.env.MY_REFRESH_SECRET!;
+const ACCESS_TOKEN_EXPIRY = process.env.ACCESS_TOKEN_EXPIRY || "15m"; // Default fallback
+const REFRESH_TOKEN_EXPIRY_DAYS = parseInt(process.env.REFRESH_TOKEN_EXPIRY_DAYS || "7", 10);
+
+
+// Token generation functions
+function generateAccessToken(user: { id: number; role: string }) {
+  return jwt.sign(
+    { userId: user.id.toString(), role: user.role },
+    JWT_SECRET,
+    { expiresIn: ACCESS_TOKEN_EXPIRY as jwt.SignOptions['expiresIn'] }
+  );
+}
+
+function generateRefreshToken(user: { id: number; role: string }) {
+  return jwt.sign(
+    { userId: user.id.toString(), role: user.role },
+    REFRESH_TOKEN_SECRET,
+    { expiresIn: `${REFRESH_TOKEN_EXPIRY_DAYS}d` }
+  );
+}
+
 
 export function setupAuth(app: Express) {
 
@@ -30,37 +64,59 @@ export function setupAuth(app: Express) {
   // 2. Login route
   app.post("/api/login", async (req, res) => {
     const { username, password } = req.body;
+    const user = await storage.getUserByUsername(username);
+    if (!user || !(await comparePasswords(password, user.password))) {
+      return res.status(401).json({ message: "Invalid credentials" });
+    }
 
-    const user = await storage.verifyUser(username, password);
-    if (!user) return res.status(401).json({ message: "Invalid credentials" });
+    const accessToken = generateAccessToken(user);
+    const refreshToken = generateRefreshToken(user);
 
-    // Step 1: Generate session token (this will be saved in DB)
-    const sessionToken = createSessionToken();
+    // Store refresh token in DB
+    const expiresAt = new Date();
+    expiresAt.setDate(expiresAt.getDate() + REFRESH_TOKEN_EXPIRY_DAYS);
+    await storage.saveRefreshToken(user.id, refreshToken, expiresAt);
 
-    // Step 2: Save and capture the session from DB
-    const userAuthSession = await storage.createSession(user.id, sessionToken);
+    // Send refresh token in HttpOnly cookie, access token in body
+    res.cookie("refreshToken", refreshToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "strict",
+      maxAge: REFRESH_TOKEN_EXPIRY_DAYS * 24 * 60 * 60 * 1000,
+    });
 
-    // Step 3: Fetch the full user from DB (to get the role)
-    const sessionUser = await storage.getUser(userAuthSession.userId);
-    if (!sessionUser) return res.status(401).json({ message: "User not found after session creation" });
-
-    // Step 4: Attach session data to cookie-session
-    req.session.sessionToken = userAuthSession.sessionToken;
-    req.session.userId = sessionUser.id;
-    req.session.role = sessionUser.role;
-
-    // Step 4: Send response to the client
-    res.json({ message: "Logged in successfully" });
+    res.json({ accessToken });
   });
 
 
-  // 3. Logout route
-  app.post("/api/logout", (req, res) => {
-    req.session.destroy((err) => {
-      if (err) return res.status(500).json({ message: "Logout failed" });
-      res.clearCookie("connect.sid");
-      res.status(200).json({ message: "Logged out successfully" });
-    });
+  // 3. Refresh the JWT
+  app.post("/api/refresh", async (req, res) => {
+    const refreshToken = req.cookies.refreshToken;
+    if (!refreshToken) return res.status(401).json({ message: "No refresh token" });
+
+    try {
+      const payload = jwt.verify(refreshToken, REFRESH_TOKEN_SECRET) as DecodedToken;
+
+      const dbToken = await storage.getRefreshToken(refreshToken);
+      if (!dbToken || new Date(dbToken.expiresAt) < new Date()) {
+        return res.status(403).json({ message: "Refresh token expired or invalid" });
+      }
+
+      const newAccessToken = generateAccessToken({ id: parseInt(payload.userId), role: payload.role });
+      res.json({ accessToken: newAccessToken });
+    } catch (err) {
+      res.status(403).json({ message: "Invalid refresh token" });
+    }
+  });
+
+  // 4. Logout route
+  app.post("/api/logout", async (req, res) => {
+    const refreshToken = req.cookies.refreshToken;
+    if (refreshToken) {
+      await storage.deleteRefreshToken(refreshToken);
+      res.clearCookie("refreshToken");
+    }
+    res.status(200).json({ message: "Logged out" });
   });
   
 }

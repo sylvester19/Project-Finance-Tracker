@@ -12,7 +12,7 @@ import {
 import { ZodError } from "zod";
 import { fromZodError } from "zod-validation-error";
 import { setupAuth } from "./auth";
-import {authenticateViaSession, authorizeRole} from "../middleware/authMiddleware.ts"
+import {authenticateViaJWT, authorizeRole} from "../middleware/authMiddleware.ts"
 
 export async function registerRoutes(app: Express): Promise<Server> {
   const httpServer = createServer(app);
@@ -21,7 +21,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   setupAuth(app);
   
   // Client routes
-  app.get('/api/clients', authenticateViaSession, async (req, res) => {
+  app.get('/api/clients', authenticateViaJWT, async (req, res) => {
     const { userId, role } = req.session;
     
     if (userId === undefined || role === undefined) {
@@ -42,7 +42,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.json(clients);
   });
 
-  app.get('/api/clients/:id', authenticateViaSession, async (req, res) => {
+  app.get('/api/clients/:id', authenticateViaJWT, async (req, res) => {
     const client = await storage.getClient(parseInt(req.params.id));
     
     if (!client) {
@@ -53,7 +53,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.post('/api/clients', 
-    authenticateViaSession, 
+    authenticateViaJWT, 
     authorizeRole([UserRole.ADMIN, UserRole.MANAGER, UserRole.SALESPERSON]), 
     async (req, res) => {
       try {
@@ -91,7 +91,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   );
 
   // Project routes
-  app.get('/api/projects', authenticateViaSession, async (req, res) => {
+  app.get('/api/projects', authenticateViaJWT, async (req, res) => {
     const { userId, role } = req.session!;
 
     if (userId === undefined || role === undefined) {
@@ -104,7 +104,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.json(projects);
   });
 
-  app.get('/api/projects/:id', authenticateViaSession, async (req, res) => {
+  app.get('/api/projects/:id', authenticateViaJWT, async (req, res) => {
     const project = await storage.getProject(parseInt(req.params.id));
     
     if (!project) {
@@ -115,7 +115,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.post('/api/projects', 
-    authenticateViaSession, 
+    authenticateViaJWT, 
     authorizeRole([UserRole.ADMIN, UserRole.MANAGER, UserRole.SALESPERSON]), 
     async (req, res) => {
       try {
@@ -160,7 +160,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   );
 
   app.patch('/api/projects/:id/status', 
-    authenticateViaSession, 
+    authenticateViaJWT, 
     authorizeRole([UserRole.ADMIN, UserRole.MANAGER]), 
     async (req, res) => {
       try {
@@ -198,7 +198,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   );
 
   // Expense routes
-  app.get('/api/expenses', authenticateViaSession, async (req, res) => {
+  app.get('/api/expenses', authenticateViaJWT, async (req, res) => {
     const { userId, role } = req.session;
     
     if (!userId) {
@@ -231,7 +231,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.json(expenses);
   });
 
-  app.get('/api/projects/:id/expenses', authenticateViaSession, async (req, res) => {
+  app.get('/api/projects/:id/expenses', authenticateViaJWT, async (req, res) => {
     const projectId = parseInt(req.params.id);
     
     // Verify project exists
@@ -245,7 +245,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.post('/api/expenses', 
-    authenticateViaSession, 
+    authenticateViaJWT, 
     async (req, res) => {
       try {
         const { userId } = req.session;
@@ -289,7 +289,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   );
 
   app.patch('/api/expenses/:id/status', 
-    authenticateViaSession, 
+    authenticateViaJWT, 
     authorizeRole([UserRole.ADMIN, UserRole.MANAGER]), 
     async (req, res) => {
       try {
@@ -332,7 +332,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Activity logs
   app.get('/api/activity-logs', 
-    authenticateViaSession, 
+    authenticateViaJWT, 
     authorizeRole([UserRole.ADMIN, UserRole.MANAGER]), 
     async (req, res) => {
       const logs = await storage.getActivityLogs();
@@ -340,7 +340,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   );
 
-  app.get('/api/projects/:id/activity-logs', authenticateViaSession, async (req, res) => {
+  app.get('/api/projects/:id/activity-logs', authenticateViaJWT, async (req, res) => {
     const projectId = parseInt(req.params.id);
     
     // Verify project exists
@@ -355,7 +355,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Analytics routes
   app.get('/api/analytics/budget-vs-spent', 
-    authenticateViaSession, 
+    authenticateViaJWT, 
     authorizeRole([UserRole.ADMIN, UserRole.MANAGER]), 
     async (req, res) => {
       const data = await storage.getTotalBudgetVsSpent();
@@ -364,7 +364,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   );
 
   app.get('/api/analytics/monthly-spending', 
-    authenticateViaSession, 
+    authenticateViaJWT, 
     authorizeRole([UserRole.ADMIN, UserRole.MANAGER]), 
     async (req, res) => {
       const data = await storage.getMonthlySpendingTrends();
@@ -373,7 +373,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   );
 
   app.get('/api/analytics/spending-by-category', 
-    authenticateViaSession, 
+    authenticateViaJWT, 
     authorizeRole([UserRole.ADMIN, UserRole.MANAGER]), 
     async (req, res) => {
       const data = await storage.getSpendingByCategory();
@@ -382,7 +382,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   );
 
   app.get('/api/analytics/expense-approval-rates', 
-    authenticateViaSession, 
+    authenticateViaJWT, 
     authorizeRole([UserRole.ADMIN, UserRole.MANAGER]), 
     async (req, res) => {
       const data = await storage.getExpenseApprovalRates();
@@ -391,7 +391,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   );
 
   app.get('/api/analytics/spending-by-employee', 
-    authenticateViaSession, 
+    authenticateViaJWT, 
     authorizeRole([UserRole.ADMIN, UserRole.MANAGER]), 
     async (req, res) => {
       const data = await storage.getSpendingByEmployee();
