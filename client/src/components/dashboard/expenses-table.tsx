@@ -6,6 +6,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Link, useLocation } from 'wouter';
 import { useMobile } from '@/hooks/use-mobile';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { apiRequest } from '@/lib/queryClient';
 
 export default function ExpensesTable() {
   const [page, setPage] = useState(1);
@@ -17,11 +18,13 @@ export default function ExpensesTable() {
   // Fetch expenses
   const { data: expenses, isLoading: isLoadingExpenses } = useQuery({
     queryKey: ['/api/expenses'],
+    queryFn: () => apiRequest("GET", "/api/expenses"),
   });
 
   // Fetch projects for filter
   const { data: projects, isLoading: isLoadingProjects } = useQuery({
     queryKey: ['/api/projects'],
+    queryFn: () => apiRequest("GET", "/api/projects"),
   });
 
   const goToExpenseDetails = (id: number) => {

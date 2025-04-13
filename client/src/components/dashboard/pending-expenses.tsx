@@ -49,13 +49,17 @@ export function PendingExpenses() {
 
   // Fetch users for expense submitter names
   const { data: users = [] } = useQuery<User[]>({
-    queryKey: ['/api/auth/users'],
+    queryKey: ['/api/users'],
     staleTime: 300000
   });
 
   // Fetch projects for expense project names
   const { data: projects = [] } = useQuery<Project[]>({
     queryKey: ['/api/projects'],
+    queryFn: async () => {
+      const res = await apiRequest("GET", "/api/projects");
+      return res.json();
+    },
     staleTime: 300000
   });
 

@@ -9,6 +9,7 @@ import { formatCurrency, formatDate, getStatusColor, formatStatus, calculatePerc
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Progress } from "@/components/ui/progress";
 import { PanelTop, Search, ChevronLeft, ChevronRight } from "lucide-react";
+import { apiRequest } from "@/lib/queryClient";
 
 interface Project {
   id: number;
@@ -29,6 +30,10 @@ export function ProjectsTable() {
   // Fetch projects
   const { data: projects = [], isLoading } = useQuery({
     queryKey: ['/api/projects'],
+    queryFn: async () => {
+      const res = await apiRequest("GET", "/api/projects");
+      return res.json();
+    },
     staleTime: 60000
   });
 

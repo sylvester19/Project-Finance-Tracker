@@ -2,7 +2,6 @@ import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 import cookieParser from "cookie-parser";
-import { authenticateViaJWT } from "../middleware/authMiddleware"
 
 const app = express();
 app.use(express.json());
@@ -39,10 +38,6 @@ app.use((req, res, next) => {
 
   next();
 });
-
-
-// Using the authenticateViaJWT middleware for route protection
-app.use(authenticateViaJWT);
 
 
 (async () => {

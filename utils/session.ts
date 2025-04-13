@@ -4,10 +4,6 @@ import { promisify } from "util";
 
 const scryptAsync = promisify(scrypt);
 
-export function createSessionToken(): string {
-  return randomBytes(32).toString("hex");
-}
-
 export async function hashPassword(password: string) {
   const salt = randomBytes(16).toString("hex");
   const buf = (await scryptAsync(password, salt, 64)) as Buffer;

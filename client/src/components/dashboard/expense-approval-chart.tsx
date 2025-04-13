@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from 'recharts';
 import { Skeleton } from '@/components/ui/skeleton';
+import { apiRequest } from '@/lib/queryClient';
 
 const COLORS = ['hsl(var(--secondary))', 'hsl(var(--accent))', 'hsl(var(--destructive))'];
 const RADIAN = Math.PI / 180;
@@ -35,6 +36,7 @@ export default function ExpenseApprovalChart() {
   // Fetch projects for filter
   const { data: projects } = useQuery({
     queryKey: ['/api/projects'],
+    queryFn: () => apiRequest("GET", "/api/projects"),
   });
   
   // Fetch approval rates

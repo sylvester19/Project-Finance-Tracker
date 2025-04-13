@@ -73,7 +73,7 @@ export default function UserManagement() {
 
   // Fetch users
   const { data: users = [], isLoading } = useQuery<User[]>({
-    queryKey: ['/api/auth/users'],
+    queryKey: ['/api/users'],
     staleTime: 60000
   });
 
@@ -105,7 +105,7 @@ export default function UserManagement() {
       return res.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/auth/users'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/users'] });
       toast({
         title: "User created",
         description: "New user has been created successfully",
@@ -125,11 +125,11 @@ export default function UserManagement() {
   // Delete user mutation
   const deleteUserMutation = useMutation({
     mutationFn: async (userId: number) => {
-      const res = await apiRequest("DELETE", `/api/auth/users/${userId}`, {});
+      const res = await apiRequest("DELETE", `/api/users/${userId}`, {});
       return res.json();
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/auth/users'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/users'] });
       toast({
         title: "User deleted",
         description: "The user has been deleted successfully",

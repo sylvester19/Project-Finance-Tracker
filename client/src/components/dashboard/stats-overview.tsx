@@ -4,6 +4,7 @@ import { Link } from "wouter";
 import { formatCurrency } from "@/lib/utils";
 import { useQuery } from "@tanstack/react-query";
 import { FileText, PanelTop, BarChart3, DollarSign } from "lucide-react";
+import { apiRequest } from "@/lib/queryClient";
 
 export interface StatsCardProps {
   title: string;
@@ -67,6 +68,10 @@ export function StatsOverview() {
   // Fetch active projects count
   const projectsQuery = useQuery({ 
     queryKey: ['/api/projects'],
+    queryFn: async () => {
+      const res = await apiRequest("GET", "/api/projects");
+      return res.json();
+    },
     staleTime: 60000
   });
   

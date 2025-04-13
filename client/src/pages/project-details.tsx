@@ -55,12 +55,20 @@ export default function ProjectDetails() {
   // Fetch project details
   const { data: project, isLoading: isProjectLoading } = useQuery({
     queryKey: [`/api/projects/${projectId}`],
+    queryFn: async () => {
+      const res = await apiRequest("GET", `/api/projects/${projectId}`);
+      return res.json();
+    },
     staleTime: 60000
   });
 
   // Fetch project expenses
   const { data: expenses = [], isLoading: isExpensesLoading } = useQuery({
     queryKey: [`/api/projects/${projectId}/expenses`],
+    queryFn: async () => {
+      const res = await apiRequest("GET", `/api/projects/${projectId}/expenses`);
+      return res.json();
+    },
     staleTime: 60000
   });
 
@@ -74,6 +82,10 @@ export default function ProjectDetails() {
   // Fetch project activity logs
   const { data: activityLogs = [], isLoading: isLogsLoading } = useQuery({
     queryKey: [`/api/projects/${projectId}/activity-logs`],
+    queryFn: async () => {
+      const res = await apiRequest("GET", `/api/projects/${projectId}/activity-logs`);
+      return res.json();
+    },
     staleTime: 60000
   });
 

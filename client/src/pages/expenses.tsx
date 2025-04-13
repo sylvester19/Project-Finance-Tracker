@@ -24,6 +24,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { formatCurrency, formatDate, getStatusColor, formatStatus } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
 import { Plus, Search, FileText } from "lucide-react";
+import { apiRequest } from "@/lib/queryClient";
 
 interface Expense {
   id: number;
@@ -70,6 +71,10 @@ export default function Expenses() {
   // Fetch projects for expense project names
   const { data: projects = [] } = useQuery<Project[]>({
     queryKey: ['/api/projects'],
+    queryFn: async () => {
+      const res = await apiRequest("GET", "/api/projects");
+      return res.json();
+    },
     staleTime: 300000
   });
 

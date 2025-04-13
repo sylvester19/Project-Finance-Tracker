@@ -40,7 +40,7 @@ export default function Employees() {
 
   // Fetch users
   const { data: users = [], isLoading: isUsersLoading } = useQuery<User[]>({
-    queryKey: ['/api/auth/users'],
+    queryKey: ['/api/users'],
     staleTime: 300000
   });
 

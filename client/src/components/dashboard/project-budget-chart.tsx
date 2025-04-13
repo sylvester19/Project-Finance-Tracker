@@ -6,6 +6,7 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContaine
 import { Download } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
+import { apiRequest } from '@/lib/queryClient';
 
 export default function ProjectBudgetChart() {
   const [timeRange, setTimeRange] = useState('30days');
@@ -13,6 +14,7 @@ export default function ProjectBudgetChart() {
   // Fetch projects
   const { data: projects, isLoading } = useQuery({
     queryKey: ['/api/projects'],
+    queryFn: () => apiRequest("GET", "/api/projects"),
   });
 
   // Format data for chart

@@ -67,8 +67,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         throw new Error(data.message || "Login failed");
       }
       
-      setUser(data);
-      return data;
+      const accessToken = data.accessToken;
+
+      // Store the token in localStorage
+      localStorage.setItem('access_token', accessToken);
+
+      // Fetch user info using the access token
+      const userRes = await fetch("/api/user", {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+      });
+      
+      const userData = await userRes.json();
+      if (!userRes.ok) {
+        throw new Error("Failed to fetch user");
+      }
+
+      setUser(userData);
+      return userData;
     } catch (error) {
       if (error instanceof Error) {
         throw error;

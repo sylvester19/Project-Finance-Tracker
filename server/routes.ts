@@ -12,7 +12,7 @@ import {
 import { ZodError } from "zod";
 import { fromZodError } from "zod-validation-error";
 import { setupAuth } from "./auth";
-import {authenticateViaJWT, authorizeRole} from "../middleware/authMiddleware.ts"
+import {authenticateViaJWT, authorizeRole} from "./middleware/authMiddleware.ts"
 
 export async function registerRoutes(app: Express): Promise<Server> {
   const httpServer = createServer(app);

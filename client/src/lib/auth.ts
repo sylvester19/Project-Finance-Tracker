@@ -54,6 +54,12 @@ export function AuthProvider(props: { children: React.ReactNode }) {
         setUser(data.user);
         setIsLoading(false);
         return true;
+      } else if (res.status === 401) {
+        // REDIRECT on unauthorized
+        setUser(null);
+        setIsLoading(false);
+        setLocation('/login'); // or show a toast
+        return false;
       } else {
         setUser(null);
         setIsLoading(false);
@@ -71,11 +77,33 @@ export function AuthProvider(props: { children: React.ReactNode }) {
   async function login(username: string, password: string): Promise<boolean> {
     try {
       const res = await apiRequest('POST', '/api/login', { username, password });
-      const data = await res.json();
-      setUser(data.user);
+      const { access_token } = await res.json();
+
+      if (!access_token) {
+        throw new Error('No access token returned');
+      }
+
+      // Store the token in localStorage
+      localStorage.setItem('access_token', access_token);
+
+      const userRes = await fetch('/api/auth/user', {
+        method: 'GET',
+        headers: {
+          Authorization: `Bearer ${access_token}`,
+        },
+      });
+
+      if (!userRes.ok) {
+        throw new Error('Failed to fetch user data');
+      }
+
+      const userData = await userRes.json();
+
+      setUser(userData.user); // or just userData depending on shape
+
       toast({
         title: 'Logged in successfully',
-        description: `Welcome back, ${data.user.name}!`,
+        description: `Welcome back, ${userData.user.name}!`,
       });
       return true;
     } catch (error) {

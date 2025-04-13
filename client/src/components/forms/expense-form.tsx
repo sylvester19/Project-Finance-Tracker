@@ -44,6 +44,10 @@ export function ExpenseForm({ projectId, expenseId, defaultValues }: ExpenseForm
   // Fetch projects for the dropdown if projectId is not provided
   const { data: projects = [], isLoading: isProjectsLoading } = useQuery({
     queryKey: ['/api/projects'],
+    queryFn: async () => {
+      const res = await apiRequest("GET", "/api/projects");
+      return res.json();
+    },
     staleTime: 60000,
     enabled: !projectId, // Only fetch if projectId is not provided
   });

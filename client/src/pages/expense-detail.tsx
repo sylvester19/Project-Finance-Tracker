@@ -48,6 +48,10 @@ export default function ExpenseDetail() {
   // Fetch project details
   const { data: project, isLoading: isProjectLoading } = useQuery({
     queryKey: [`/api/projects/${expense?.projectId}`],
+    queryFn: async () => {
+      const res = await apiRequest("GET", `/api/projects/${expense?.projectId}`);
+      return res.json();
+    },
     enabled: !!expense?.projectId,
     staleTime: 60000
   });
