@@ -1,28 +1,11 @@
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
-import session from "express-session";
-import crypto from "crypto";
-import { storage } from "./storage";
 
-// Create a random session secret
-const sessionSecret = crypto.randomBytes(32).toString('hex');
 
 const app = express();
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
-
-// Set up session middleware
-app.use(session({
-  store: storage.sessionStore,
-  secret: sessionSecret,
-  resave: false,
-  saveUninitialized: false,
-  cookie: { 
-    secure: process.env.NODE_ENV === 'production',
-    maxAge: 24 * 60 * 60 * 1000 // 1 day
-  }
-}));
 
 app.use((req, res, next) => {
   const start = Date.now();

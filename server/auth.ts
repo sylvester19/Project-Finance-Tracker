@@ -4,23 +4,8 @@ import { storage } from "./storage";
 import { hashPassword, createSessionToken } from "../utils/session";
 
 export function setupAuth(app: Express) {
-  // 1. Setup session
-  app.use(
-    session({
-      secret: process.env.SESSION_SECRET || "solar-project-secret-key",
-      resave: false,
-      saveUninitialized: false,
-      cookie: {
-        secure: process.env.NODE_ENV === "production",
-        httpOnly: true,
-        sameSite: "lax",
-        maxAge: 1000 * 60 * 60 * 24, // 1 day
-      },
-    })
-  );
-  
 
-  // 2. Register route
+  // 1. Register route
   app.post("/api/register", async (req, res) => {
     const { username, password, name, role } = req.body;
 
@@ -42,7 +27,7 @@ export function setupAuth(app: Express) {
   });
 
 
-  // 3. Login route
+  // 2. Login route
   app.post("/api/login", async (req, res) => {
     const { username, password } = req.body;
 
@@ -69,7 +54,7 @@ export function setupAuth(app: Express) {
   });
 
 
-  // 4. Logout route
+  // 3. Logout route
   app.post("/api/logout", (req, res) => {
     req.session.destroy((err) => {
       if (err) return res.status(500).json({ message: "Logout failed" });

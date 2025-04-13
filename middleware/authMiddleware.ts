@@ -1,7 +1,6 @@
 import { Request, Response, NextFunction } from "express";
 import { storage } from "../server/storage";
 import { UserRoleType } from "../shared/schema"
-import { getUserFromRequest } from "../utils/getUserFromRequest";
 
 export async function authenticateViaSession(req: Request, res: Response, next: NextFunction) {
   const session = req.session;
@@ -39,12 +38,14 @@ export async function authenticateViaSession(req: Request, res: Response, next: 
 }
 
 
-export function authorizeRole(roles: UserRoleType[]) {
+export function authorizeRole(allowedRoles: UserRoleType[]) {
   return (req: Request, res: Response, next: NextFunction) => {
-    const user = getUserFromRequest(req);
-    if (!user || !roles.includes(user.role)) {
-      return res.status(403).json({ message: "Insufficient permissions" });
+    const { role, userId } = req.session || {};
+
+    if (!role || !userId || !allowedRoles.includes(role)) {
+      return res.status(403).json({ message: "Forbidden: insufficient permissions" });
     }
+
     next();
   };
 }

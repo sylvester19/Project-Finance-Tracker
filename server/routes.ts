@@ -24,9 +24,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get('/api/clients', authenticateViaSession, async (req, res) => {
     const { userId, role } = req.session;
     
-    if (!userId) {
-      return res.status(500).json({ message: "Session invalid @/api/clients: missing userId" });
-    }    
+    if (userId === undefined || role === undefined) {
+      return res.status(400).json({
+        message: "Session invalid @/api/clients: missing userId or role"
+      });
+    }  
   
     let clients;
     if (role === UserRole.ADMIN || role === UserRole.MANAGER) {
@@ -90,13 +92,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Project routes
   app.get('/api/projects', authenticateViaSession, async (req, res) => {
-    const { userId, role } = req.session;
-    if (!userId) {
-      return res.status(500).json({ message: "Session invalid @/api/projects: missing userId" });
-    }    
+    const { userId, role } = req.session!;
 
-    if (!role) {
-      return res.status(500).json({ message: "Session invalid @/api/projects: missing role" });
+    if (userId === undefined || role === undefined) {
+      return res.status(400).json({
+        message: "Session invalid @/api/projects: missing userId or role"
+      });
     }
   
     const projects = await storage.getProjectsByUser(userId, role);

@@ -7,12 +7,3 @@ declare module 'express-session' {
     sessionToken: string; 
   }
 }
-
-declare global {
-  namespace Express {
-    interface Request {
-      userId?: string;
-      role?: UserRoleType;
-    }
-  }
-}
