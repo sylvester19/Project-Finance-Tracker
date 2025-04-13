@@ -1,4 +1,4 @@
-import { pgTable, text, serial, integer, boolean, timestamp, doublePrecision } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, timestamp, doublePrecision } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -29,6 +29,15 @@ export const ExpenseStatus = {
 } as const;
 
 export type ExpenseStatusType = typeof ExpenseStatus[keyof typeof ExpenseStatus];
+
+// Auth Session model
+export const authSessions = pgTable("auth_sessions", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull(),
+  sessionToken: text("session_token").notNull().unique(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  expiresAt: timestamp("expires_at").notNull(),
+});
 
 // User model
 export const users = pgTable("users", {
@@ -100,6 +109,12 @@ export const activityLogs = pgTable("activity_logs", {
 });
 
 // Insert schemas
+export const insertAuthSessionSchema = createInsertSchema(authSessions).pick({
+  userId: true,
+  sessionToken: true,
+  expiresAt: true,
+});
+
 export const insertUserSchema = createInsertSchema(users).pick({
   username: true,
   password: true,
@@ -168,6 +183,9 @@ export const expenseFormSchema = insertExpenseSchema.extend({
 });
 
 // Types for database operations
+export type InsertAuthSession = z.infer<typeof insertAuthSessionSchema>;
+export type AuthSession = typeof authSessions.$inferSelect;
+
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type User = typeof users.$inferSelect;
 

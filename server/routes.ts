@@ -1,82 +1,46 @@
-import type { Express, Request, Response } from "express";
+import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import express from "express";
 import { 
-  userLoginSchema, 
-  userRegisterSchema, 
   insertClientSchema, 
   projectFormSchema, 
   insertExpenseSchema,
-  insertActivityLogSchema,
   UserRole,
-  ExpenseStatus
+  ExpenseStatus,
+  ExpenseStatusType
 } from "@shared/schema";
 import { ZodError } from "zod";
 import { fromZodError } from "zod-validation-error";
 import { setupAuth } from "./auth";
-
-// Auth middleware
-function requireAuth(req: Request, res: Response, next: Function) {
-  if (!req.isAuthenticated()) {
-    return res.status(401).json({ message: "Authentication required" });
-  }
-  next();
-}
-
-function requireRole(roles: string[]) {
-  return (req: Request, res: Response, next: Function) => {
-    if (!req.user || !roles.includes(req.user.role)) {
-      return res.status(403).json({ message: "Insufficient permissions" });
-    }
-    next();
-  };
-}
+import {authenticateViaSession, authorizeRole} from "../middleware/authMiddleware.ts"
 
 export async function registerRoutes(app: Express): Promise<Server> {
   const httpServer = createServer(app);
   
-  // Setup passport authentication
+  // set up login | logout | register endpoints directly with session in the db same session on client 
   setupAuth(app);
   
-  // Old auth routes are now deprecated, but redirected to new endpoints
-  app.post('/api/auth/login', (req, res) => {
-    // Redirect old login endpoint to the new one
-    res.redirect(307, '/api/login');
-  });
-
-  app.post('/api/auth/register', (req, res) => {
-    // Redirect old register endpoint to the new one
-    res.redirect(307, '/api/register');
-  });
-
-  app.get('/api/auth/me', (req, res) => {
-    // Redirect old me endpoint to the new one
-    res.redirect(307, '/api/user');
-  });
-  
-  app.post('/api/auth/logout', (req, res) => {
-    // Redirect old logout endpoint to the new one
-    res.redirect(307, '/api/logout');
-  });
-
   // Client routes
-  app.get('/api/clients', requireAuth, async (req, res) => {
-    const { id: userId, role } = req.user;
+  app.get('/api/clients', authenticateViaSession, async (req, res) => {
+    const { userId, role } = req.session;
     
+    if (!userId) {
+      return res.status(500).json({ message: "Session invalid @/api/clients: missing userId" });
+    }    
+  
     let clients;
     if (role === UserRole.ADMIN || role === UserRole.MANAGER) {
       clients = await storage.getClients();
     } else if (role === UserRole.SALESPERSON) {
       clients = await storage.getClientsBySalesperson(userId);
     } else {
-      return res.status(403).json({ message: "Insufficient permissions" });
+      return res.status(403).json({ message: "Insufficient permissions @/api/clients" });
     }
     
     res.json(clients);
   });
 
-  app.get('/api/clients/:id', requireAuth, async (req, res) => {
+  app.get('/api/clients/:id', authenticateViaSession, async (req, res) => {
     const client = await storage.getClient(parseInt(req.params.id));
     
     if (!client) {
@@ -87,11 +51,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.post('/api/clients', 
-    requireAuth, 
-    requireRole([UserRole.ADMIN, UserRole.MANAGER, UserRole.SALESPERSON]), 
+    authenticateViaSession, 
+    authorizeRole([UserRole.ADMIN, UserRole.MANAGER, UserRole.SALESPERSON]), 
     async (req, res) => {
       try {
-        const { id: userId } = req.user;
+        const { userId } = req.session;
+
+        if (!userId) {
+          return res.status(500).json({ message: "Session invalid @/api/clients: missing userId" });
+        }    
+  
         const clientData = insertClientSchema.parse({
           ...req.body,
           createdById: userId
@@ -120,13 +89,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
   );
 
   // Project routes
-  app.get('/api/projects', requireAuth, async (req, res) => {
-    const { id: userId, role } = req.user;
+  app.get('/api/projects', authenticateViaSession, async (req, res) => {
+    const { userId, role } = req.session;
+    if (!userId) {
+      return res.status(500).json({ message: "Session invalid @/api/projects: missing userId" });
+    }    
+
+    if (!role) {
+      return res.status(500).json({ message: "Session invalid @/api/projects: missing role" });
+    }
+  
     const projects = await storage.getProjectsByUser(userId, role);
     res.json(projects);
   });
 
-  app.get('/api/projects/:id', requireAuth, async (req, res) => {
+  app.get('/api/projects/:id', authenticateViaSession, async (req, res) => {
     const project = await storage.getProject(parseInt(req.params.id));
     
     if (!project) {
@@ -137,11 +114,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.post('/api/projects', 
-    requireAuth, 
-    requireRole([UserRole.ADMIN, UserRole.MANAGER, UserRole.SALESPERSON]), 
+    authenticateViaSession, 
+    authorizeRole([UserRole.ADMIN, UserRole.MANAGER, UserRole.SALESPERSON]), 
     async (req, res) => {
       try {
-        const { userId } = (req as any).user;
+        const { userId } = req.session;
+
+        if (!userId) {
+          return res.status(500).json({ message: "Session invalid @/api/projects: missing userId" });
+        }
+
         const projectData = projectFormSchema.parse({
           ...req.body,
           createdById: userId
@@ -177,11 +159,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
   );
 
   app.patch('/api/projects/:id/status', 
-    requireAuth, 
-    requireRole([UserRole.ADMIN, UserRole.MANAGER]), 
+    authenticateViaSession, 
+    authorizeRole([UserRole.ADMIN, UserRole.MANAGER]), 
     async (req, res) => {
       try {
-        const { userId } = (req as any).user;
+        const { userId } = req.session;
+        if (!userId) {
+          return res.status(500).json({ message: "Session invalid @/api/projects/:id/status: missing userId" });
+        }
         const projectId = parseInt(req.params.id);
         const { status } = req.body;
         
@@ -212,13 +197,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
   );
 
   // Expense routes
-  app.get('/api/expenses', requireAuth, async (req, res) => {
-    const { userId, role } = (req as any).user;
+  app.get('/api/expenses', authenticateViaSession, async (req, res) => {
+    const { userId, role } = req.session;
+    
+    if (!userId) {
+      return res.status(500).json({ message: "Session invalid @/api/expenses: missing userId" });
+    }
+
+    const rawStatus = req.query.status;
+    let status: ExpenseStatusType | undefined = undefined;
+
+    if (typeof rawStatus === "string") {
+      const possibleStatus = rawStatus as string;
+      if (Object.values(ExpenseStatus).includes(possibleStatus as ExpenseStatusType)) {
+        status = possibleStatus as ExpenseStatusType;
+      } else {
+        return res.status(400).json({ message: `Invalid status value: ${possibleStatus}` });
+      }
+    }
     
     let expenses;
     if (role === UserRole.ADMIN || role === UserRole.MANAGER) {
-      if (req.query.status) {
-        expenses = await storage.getExpensesByStatus(req.query.status as string);
+      if (status) {
+        expenses = await storage.getExpensesByStatus(status);
       } else {
         expenses = await storage.getExpenses();
       }
@@ -229,7 +230,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     res.json(expenses);
   });
 
-  app.get('/api/projects/:id/expenses', requireAuth, async (req, res) => {
+  app.get('/api/projects/:id/expenses', authenticateViaSession, async (req, res) => {
     const projectId = parseInt(req.params.id);
     
     // Verify project exists
@@ -243,10 +244,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.post('/api/expenses', 
-    requireAuth, 
+    authenticateViaSession, 
     async (req, res) => {
       try {
-        const { userId } = (req as any).user;
+        const { userId } = req.session;
+        if (!userId) {
+          return res.status(500).json({ message: "Session invalid @/api/expenses: missing userId" });
+        }
         const expenseData = insertExpenseSchema.parse({
           ...req.body,
           submittedById: userId,
@@ -284,11 +288,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
   );
 
   app.patch('/api/expenses/:id/status', 
-    requireAuth, 
-    requireRole([UserRole.ADMIN, UserRole.MANAGER]), 
+    authenticateViaSession, 
+    authorizeRole([UserRole.ADMIN, UserRole.MANAGER]), 
     async (req, res) => {
       try {
-        const { userId } = (req as any).user;
+        const { userId } = req.session;
+
+        if (!userId) {
+          return res.status(500).json({ message: "Session invalid @/api/expenses/:id/status: missing userId" });
+        }
         const expenseId = parseInt(req.params.id);
         const { status, feedback } = req.body;
         
@@ -323,15 +331,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Activity logs
   app.get('/api/activity-logs', 
-    requireAuth, 
-    requireRole([UserRole.ADMIN, UserRole.MANAGER]), 
+    authenticateViaSession, 
+    authorizeRole([UserRole.ADMIN, UserRole.MANAGER]), 
     async (req, res) => {
       const logs = await storage.getActivityLogs();
       res.json(logs);
     }
   );
 
-  app.get('/api/projects/:id/activity-logs', requireAuth, async (req, res) => {
+  app.get('/api/projects/:id/activity-logs', authenticateViaSession, async (req, res) => {
     const projectId = parseInt(req.params.id);
     
     // Verify project exists
@@ -346,8 +354,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Analytics routes
   app.get('/api/analytics/budget-vs-spent', 
-    requireAuth, 
-    requireRole([UserRole.ADMIN, UserRole.MANAGER]), 
+    authenticateViaSession, 
+    authorizeRole([UserRole.ADMIN, UserRole.MANAGER]), 
     async (req, res) => {
       const data = await storage.getTotalBudgetVsSpent();
       res.json(data);
@@ -355,8 +363,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   );
 
   app.get('/api/analytics/monthly-spending', 
-    requireAuth, 
-    requireRole([UserRole.ADMIN, UserRole.MANAGER]), 
+    authenticateViaSession, 
+    authorizeRole([UserRole.ADMIN, UserRole.MANAGER]), 
     async (req, res) => {
       const data = await storage.getMonthlySpendingTrends();
       res.json(data);
@@ -364,8 +372,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   );
 
   app.get('/api/analytics/spending-by-category', 
-    requireAuth, 
-    requireRole([UserRole.ADMIN, UserRole.MANAGER]), 
+    authenticateViaSession, 
+    authorizeRole([UserRole.ADMIN, UserRole.MANAGER]), 
     async (req, res) => {
       const data = await storage.getSpendingByCategory();
       res.json(data);
@@ -373,8 +381,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   );
 
   app.get('/api/analytics/expense-approval-rates', 
-    requireAuth, 
-    requireRole([UserRole.ADMIN, UserRole.MANAGER]), 
+    authenticateViaSession, 
+    authorizeRole([UserRole.ADMIN, UserRole.MANAGER]), 
     async (req, res) => {
       const data = await storage.getExpenseApprovalRates();
       res.json(data);
@@ -382,8 +390,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   );
 
   app.get('/api/analytics/spending-by-employee', 
-    requireAuth, 
-    requireRole([UserRole.ADMIN, UserRole.MANAGER]), 
+    authenticateViaSession, 
+    authorizeRole([UserRole.ADMIN, UserRole.MANAGER]), 
     async (req, res) => {
       const data = await storage.getSpendingByEmployee();
       res.json(data);

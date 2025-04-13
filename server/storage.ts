@@ -1,25 +1,33 @@
 import {
-  User, InsertUser, users,
+  AuthSession, User, InsertUser, users,
   Client, InsertClient, clients,
   Project, InsertProject, projects,
   Expense, InsertExpense, expenses,
   ActivityLog, InsertActivityLog, activityLogs,
-  ExpenseStatus, ProjectStatus, UserRole, ExpenseCategory
+  ExpenseStatus, UserRole, UserRoleType, ExpenseCategoryType,
+  authSessions
 } from "@shared/schema";
 import { eq, sql } from 'drizzle-orm';
 import type { ProjectStatusType, ExpenseStatusType } from "@shared/schema";
 import session from "express-session";
 import createMemoryStore from "memorystore";
+import { comparePasswords } from "../utils/session"
 
 // Interface for all storage operations
 export interface IStorage {
   // Session store for Express session
   sessionStore: session.Store;
-  
+
+  // Auth Session Operation
+  createSession(userId: number, sessionToken: string): Promise<AuthSession>;
+  getSessionByToken(sessionToken: string): Promise<AuthSession | undefined>;
+  deleteSession(sessionToken: string): Promise<void>;
+
   // User operations
   getUser(id: number): Promise<User | undefined>;
   getUserByUsername(username: string): Promise<User | undefined>;
   createUser(user: InsertUser): Promise<User>;
+  verifyUser(username: string, password: string): Promise<User | undefined>;
   
   // Client operations
   getClient(id: number): Promise<Client | undefined>;
@@ -61,6 +69,7 @@ export interface IStorage {
 
 // In-memory implementation
 export class MemStorage implements IStorage {
+  private sessions: Map<string, number>;
   private users: Map<number, User>;
   private clients: Map<number, Client>;
   private projects: Map<number, Project>;
@@ -74,6 +83,7 @@ export class MemStorage implements IStorage {
   public sessionStore: session.Store;
 
   constructor() {
+    this.sessions = new Map();
     this.users = new Map();
     this.clients = new Map();
     this.projects = new Map();
@@ -155,7 +165,7 @@ export class MemStorage implements IStorage {
       name: "ABC HQ Solar Installation",
       clientId: client1.id,
       status: "in_progress",
-      startDate: new Date("2025-01-15").toISOString(),
+      startDate: new Date("2025-01-15"),
       budget: 250000,
       createdById: salesperson.id
     });
@@ -164,7 +174,7 @@ export class MemStorage implements IStorage {
       name: "Sunshine Homes Residential",
       clientId: client2.id,
       status: "planning",
-      startDate: new Date("2025-03-01").toISOString(),
+      startDate: new Date("2025-03-01"),
       budget: 120000,
       createdById: salesperson.id
     });
@@ -173,7 +183,7 @@ export class MemStorage implements IStorage {
       name: "Green Co-op Phase 1",
       clientId: client3.id,
       status: "completed",
-      startDate: new Date("2024-11-01").toISOString(),
+      startDate: new Date("2024-11-01"),
       budget: 350000,
       createdById: manager.id
     });
@@ -294,6 +304,39 @@ export class MemStorage implements IStorage {
     });
   }
 
+  // Auth Session Operation
+  async createSession(userId: number, sessionToken: string): Promise<AuthSession> {
+    const { db } = await import('./db');
+  
+    const [session] = await db
+      .insert(authSessions)
+      .values({
+        userId,
+        sessionToken,
+        expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days from now
+      })
+      .returning();
+  
+    return session;
+  }
+  
+
+  async getSessionByToken(sessionToken: string): Promise<AuthSession | undefined> {
+    const { db } = await import('./db');
+  
+    const [session] = await db
+      .select()
+      .from(authSessions)
+      .where(eq(authSessions.sessionToken, sessionToken))
+      .limit(1);
+  
+    return session; // Will return undefined if not found
+  }
+
+  async deleteSession(sessionToken: string): Promise<void> {
+    this.sessions.delete(sessionToken);
+  }
+
   // User operations
   async getUser(id: number): Promise<User | undefined> {
     return this.users.get(id);
@@ -307,10 +350,31 @@ export class MemStorage implements IStorage {
 
   async createUser(insertUser: InsertUser): Promise<User> {
     const id = this.currentUserId++;
-    const user: User = { ...insertUser, id };
+    const user: User = { ...insertUser, id, role: insertUser.role as UserRoleType};
     this.users.set(id, user);
     return user;
   }
+
+  async verifyUser(username: string, password: string): Promise<User | undefined> {
+    const user = Array.from(this.users.values()).find(u => u.username === username);
+
+    if (!user) {
+      return undefined; // User not found
+    }
+
+    try {
+      const passwordMatch = await comparePasswords(password, user.password);
+      if (passwordMatch) {
+        return user;
+      }
+    } catch (error) {
+      console.error("Error comparing passwords:", error);
+      return undefined; // Or throw, depending on your error handling
+    }
+
+    return undefined; // Invalid password
+  }
+
 
   // Client operations
   async getClient(id: number): Promise<Client | undefined> {
@@ -329,7 +393,7 @@ export class MemStorage implements IStorage {
 
   async createClient(insertClient: InsertClient): Promise<Client> {
     const id = this.currentClientId++;
-    const client: Client = { ...insertClient, id };
+    const client: Client = { ...insertClient, id, contactEmail: insertClient.contactEmail ?? null, contactPhone: insertClient.contactPhone ?? null };
     this.clients.set(id, client);
     return client;
   }
@@ -360,7 +424,7 @@ export class MemStorage implements IStorage {
 
   async createProject(insertProject: InsertProject): Promise<Project> {
     const id = this.currentProjectId++;
-    const project: Project = { ...insertProject, id };
+    const project: Project = { ...insertProject, id, status: insertProject.status as ProjectStatusType };
     this.projects.set(id, project);
     return project;
   }
@@ -370,7 +434,7 @@ export class MemStorage implements IStorage {
     if (!project) {
       throw new Error(`Project with id ${id} not found`);
     }
-    const updatedProject = { ...project, status };
+    const updatedProject = { ...project, status: status as ProjectStatusType };
     this.projects.set(id, updatedProject);
     return updatedProject;
   }
@@ -396,16 +460,16 @@ export class MemStorage implements IStorage {
     );
   }
 
-  async getExpensesByStatus(status: string): Promise<Expense[]> {
-    return Array.from(this.expenses.values()).filter(
-      (expense) => expense.status === status,
-    );
-  }
+  async getExpensesByStatus(status: ExpenseStatusType): Promise<Expense[]> {
+      return Array.from(this.expenses.values()).filter(
+        (expense) => expense.status === status,
+      );
+    }
 
   async createExpense(insertExpense: InsertExpense): Promise<Expense> {
     const id = this.currentExpenseId++;
     const createdAt = new Date();
-    const expense: Expense = { ...insertExpense, id, createdAt };
+    const expense: Expense = { ...insertExpense, id, createdAt, status: insertExpense.status as ExpenseStatusType, category: insertExpense.category as ExpenseCategoryType, receiptUrl: insertExpense.receiptUrl ?? null, reviewedById: insertExpense.reviewedById ?? null, feedback: insertExpense.feedback ?? null };
     this.expenses.set(id, expense);
     return expense;
   }
@@ -421,8 +485,8 @@ export class MemStorage implements IStorage {
       ...(reviewedById && { reviewedById }),
       ...(feedback && { feedback })
     };
-    this.expenses.set(id, updatedExpense);
-    return updatedExpense;
+    this.expenses.set(id, updatedExpense as Expense);
+    return updatedExpense as Expense;
   }
 
   // Activity log operations
@@ -449,7 +513,7 @@ export class MemStorage implements IStorage {
   async createActivityLog(insertLog: InsertActivityLog): Promise<ActivityLog> {
     const id = this.currentActivityLogId++;
     const timestamp = new Date();
-    const log: ActivityLog = { ...insertLog, id, timestamp };
+    const log: ActivityLog = { ...insertLog, id, timestamp, projectId: insertLog.projectId ?? null, expenseId: insertLog.expenseId ?? null, details: insertLog.details ?? null };
     this.activityLogs.set(id, log);
     return log;
   }
@@ -552,23 +616,45 @@ export class DatabaseStorage implements IStorage {
   public sessionStore: session.Store;
   
   constructor() {
+    this.sessionStore = null as any;
+  }
+
+  async initialize() {
     // Create PostgreSQL session store
     // Using dynamic import for connect-pg-simple
-    import('connect-pg-simple').then(pgSessionModule => {
-      const PgSession = pgSessionModule.default(session);
-      this.sessionStore = new PgSession({
-        conString: process.env.DATABASE_URL,
-        createTableIfMissing: true
-      });
-    });
-    
-    // Create a temporary memory store until the PG store is initialized
-    const MemoryStore = createMemoryStore(session);
-    this.sessionStore = new MemoryStore({
-      checkPeriod: 86400000 // prune expired entries every 24h
+    const pgSessionModule = await import('connect-pg-simple');
+    const PgSession = pgSessionModule.default(session);
+    this.sessionStore = new PgSession({
+      conString: process.env.DATABASE_URL,
+      createTableIfMissing: true
     });
   }
   
+  // Auth Session Operation
+  async createSession(userId: number, sessionToken: string): Promise<AuthSession> {
+    const { db } = await import('./db');
+    const [session] = await db
+    .insert(authSessions)
+    .values({
+      userId: userId,
+      sessionToken: sessionToken,
+      expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000), // 7 days from now
+    })
+    .returning(); 
+    return session;
+  }
+
+  async getSessionByToken(sessionToken: string): Promise<AuthSession | undefined> {
+    const { db } = await import('./db');
+    const [authSession] = await db.select().from(authSessions).where(eq(authSessions.sessionToken, sessionToken));
+    return authSession;
+  }
+
+  async deleteSession(sessionToken: string): Promise<void> {
+    const { db } = await import('./db');
+    await db.delete(authSessions).where(eq(authSessions.sessionToken, sessionToken));
+  }
+
   // User operations
   async getUser(id: number): Promise<User | undefined> {
     const { db } = await import('./db');
@@ -584,8 +670,25 @@ export class DatabaseStorage implements IStorage {
 
   async createUser(insertUser: InsertUser): Promise<User> {
     const { db } = await import('./db');
-    const [user] = await db.insert(users).values(insertUser).returning();
+    const [user] = await db.insert(users).values({...insertUser, role: insertUser.role as UserRoleType}).returning();
     return user;
+  }
+
+  async verifyUser(username: string, password: string): Promise<User | undefined> {   
+      const { db } = await import('./db');
+      const [user] = await db.select().from(users).where(eq(users.username, username));
+
+      if (!user) {
+        return undefined; // User not found
+      }
+
+      const passwordMatch = await comparePasswords(password, user.password);
+
+      if (passwordMatch) {
+        return user;
+      }
+
+      return undefined; // Invalid password    
   }
 
   // Client operations
@@ -623,9 +726,9 @@ export class DatabaseStorage implements IStorage {
     return db.select().from(projects);
   }
 
-  async getProjectsByUser(userId: number, userRole: string): Promise<Project[]> {
-    const { db } = await import('./db');
-    if (userRole === UserRole.ADMIN || userRole === UserRole.MANAGER) {
+  async getProjectsByUser(userId: number, userRole: UserRoleType): Promise<Project[]> {
+      const { db } = await import('./db');
+      if (userRole === UserRole.ADMIN || userRole === UserRole.MANAGER) {
       return db.select().from(projects);
     }
     return db.select().from(projects).where(eq(projects.createdById, userId));
@@ -638,7 +741,7 @@ export class DatabaseStorage implements IStorage {
 
   async createProject(project: InsertProject): Promise<Project> {
     const { db } = await import('./db');
-    const [newProject] = await db.insert(projects).values(project).returning();
+    const [newProject] = await db.insert(projects).values({...project, status: project.status as ProjectStatusType}).returning();
     return newProject;
   }
 
@@ -674,14 +777,14 @@ export class DatabaseStorage implements IStorage {
     return db.select().from(expenses).where(eq(expenses.submittedById, userId));
   }
 
-  async getExpensesByStatus(status: string): Promise<Expense[]> {
-    const { db } = await import('./db');
-    return db.select().from(expenses).where(eq(expenses.status, status as ExpenseStatusType));
+  async getExpensesByStatus(status: ExpenseStatusType): Promise<Expense[]> {
+      const { db } = await import('./db');
+      return db.select().from(expenses).where(eq(expenses.status, status));
   }
 
   async createExpense(expense: InsertExpense): Promise<Expense> {
     const { db } = await import('./db');
-    const [newExpense] = await db.insert(expenses).values(expense).returning();
+    const [newExpense] = await db.insert(expenses).values({...expense, category: expense.category as ExpenseCategoryType, status: expense.status as ExpenseStatusType}).returning();
     return newExpense;
   }
 
@@ -689,10 +792,10 @@ export class DatabaseStorage implements IStorage {
     const { db } = await import('./db');
     const [updatedExpense] = await db
       .update(expenses)
-      .set({ 
-        status: status as ExpenseStatusType, 
-        reviewedById: reviewedById || null, 
-        feedback: feedback || null 
+      .set({
+       status: status as ExpenseStatusType,
+       reviewedById: reviewedById || null,
+       feedback: feedback || null
       })
       .where(eq(expenses.id, id))
       .returning();

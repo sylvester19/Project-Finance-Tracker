@@ -70,7 +70,7 @@ export function AuthProvider(props: { children: React.ReactNode }) {
   // Login the user
   async function login(username: string, password: string): Promise<boolean> {
     try {
-      const res = await apiRequest('POST', '/api/auth/login', { username, password });
+      const res = await apiRequest('POST', '/api/login', { username, password });
       const data = await res.json();
       setUser(data.user);
       toast({
@@ -92,7 +92,7 @@ export function AuthProvider(props: { children: React.ReactNode }) {
   // Logout the user
   async function logout(): Promise<void> {
     try {
-      await apiRequest('POST', '/api/auth/logout', {});
+      await apiRequest('POST', '/api/logout', {});
       setUser(null);
       setLocation('/login');
       toast({

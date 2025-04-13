@@ -1,132 +1,81 @@
-import passport from "passport";
-import { Strategy as LocalStrategy } from "passport-local";
-import { Express } from "express";
-import { scrypt, randomBytes, timingSafeEqual } from "crypto";
-import { promisify } from "util";
-import { storage } from "./storage";
-import { User as SelectUser } from "@shared/schema";
+import { Express, Request, Response } from "express";
 import session from "express-session";
-
-declare global {
-  namespace Express {
-    interface User extends SelectUser {}
-  }
-}
-
-const scryptAsync = promisify(scrypt);
-
-async function hashPassword(password: string) {
-  const salt = randomBytes(16).toString("hex");
-  const buf = (await scryptAsync(password, salt, 64)) as Buffer;
-  return `${buf.toString("hex")}.${salt}`;
-}
-
-async function comparePasswords(supplied: string, stored: string) {
-  const [hashed, salt] = stored.split(".");
-  const hashedBuf = Buffer.from(hashed, "hex");
-  const suppliedBuf = (await scryptAsync(supplied, salt, 64)) as Buffer;
-  return timingSafeEqual(hashedBuf, suppliedBuf);
-}
+import { storage } from "./storage";
+import { hashPassword, createSessionToken } from "../utils/session";
 
 export function setupAuth(app: Express) {
-  // Setup session middleware first
-  const sessionSettings = {
-    secret: process.env.SESSION_SECRET || "solar-project-secret-key",
-    resave: false,
-    saveUninitialized: false,
-    store: storage.sessionStore,
-    cookie: {
-      secure: process.env.NODE_ENV === "production",
-      maxAge: 1000 * 60 * 60 * 24 // 1 day
-    }
-  };
-
-  app.use(session(sessionSettings));
-  
-  // Then initialize passport
-  app.use(passport.initialize());
-  app.use(passport.session());
-
-  passport.use(
-    new LocalStrategy(async (username, password, done) => {
-      try {
-        const user = await storage.getUserByUsername(username);
-        if (!user || !(await comparePasswords(password, user.password))) {
-          return done(null, false);
-        } else {
-          return done(null, user);
-        }
-      } catch (err) {
-        return done(err);
-      }
+  // 1. Setup session
+  app.use(
+    session({
+      secret: process.env.SESSION_SECRET || "solar-project-secret-key",
+      resave: false,
+      saveUninitialized: false,
+      cookie: {
+        secure: process.env.NODE_ENV === "production",
+        httpOnly: true,
+        sameSite: "lax",
+        maxAge: 1000 * 60 * 60 * 24, // 1 day
+      },
     })
   );
-
-  passport.serializeUser<number>((user, done) => {
-    done(null, user.id);
-  });
   
-  passport.deserializeUser<number>(async (id, done) => {
-    try {
-      const user = await storage.getUser(id);
-      done(null, user || undefined);
-    } catch (err) {
-      done(err);
-    }
-  });
 
-  // Authentication routes
-  app.post("/api/register", async (req, res, next) => {
+  // 2. Register route
+  app.post("/api/register", async (req, res) => {
+    const { username, password, name, role } = req.body;
+
     try {
-      const existingUser = await storage.getUserByUsername(req.body.username);
-      if (existingUser) {
+      const existing = await storage.getUserByUsername(username);
+      if (existing) {
         return res.status(400).json({ message: "Username already exists" });
       }
 
-      const user = await storage.createUser({
-        ...req.body,
-        password: await hashPassword(req.body.password),
-      });
+      const hashed = await hashPassword(password);
+      const user = await storage.createUser({ username, password: hashed, name, role });
 
-      req.login(user, (err) => {
-        if (err) return next(err);
-        // Return user without password
-        const { password, ...userWithoutPassword } = user;
-        res.status(201).json(userWithoutPassword);
-      });
+      req.session.userId = user.id;
+      const { password: _, ...userWithoutPassword } = user;
+      res.status(201).json(userWithoutPassword);
     } catch (err) {
-      next(err);
+      res.status(500).json({ message: "Registration failed", error: err });
     }
   });
 
-  app.post("/api/login", (req, res, next) => {
-    passport.authenticate("local", (err: Error | null, user: SelectUser | false, info: { message: string } | undefined) => {
-      if (err) return next(err);
-      if (!user) {
-        return res.status(401).json({ message: "Invalid username or password" });
-      }
-      req.login(user, (err) => {
-        if (err) return next(err);
-        // Return user without password
-        const { password, ...userWithoutPassword } = user;
-        return res.json(userWithoutPassword);
-      });
-    })(req, res, next);
+
+  // 3. Login route
+  app.post("/api/login", async (req, res) => {
+    const { username, password } = req.body;
+
+    const user = await storage.verifyUser(username, password);
+    if (!user) return res.status(401).json({ message: "Invalid credentials" });
+
+    // Step 1: Generate session token (this will be saved in DB)
+    const sessionToken = createSessionToken();
+
+    // Step 2: Save and capture the session from DB
+    const userAuthSession = await storage.createSession(user.id, sessionToken);
+
+    // Step 3: Fetch the full user from DB (to get the role)
+    const sessionUser = await storage.getUser(userAuthSession.userId);
+    if (!sessionUser) return res.status(401).json({ message: "User not found after session creation" });
+
+    // Step 4: Attach session data to cookie-session
+    req.session.sessionToken = userAuthSession.sessionToken;
+    req.session.userId = sessionUser.id;
+    req.session.role = sessionUser.role;
+
+    // Step 4: Send response to the client
+    res.json({ message: "Logged in successfully" });
   });
 
-  app.post("/api/logout", (req, res, next) => {
-    req.logout((err) => {
-      if (err) return next(err);
+
+  // 4. Logout route
+  app.post("/api/logout", (req, res) => {
+    req.session.destroy((err) => {
+      if (err) return res.status(500).json({ message: "Logout failed" });
+      res.clearCookie("connect.sid");
       res.status(200).json({ message: "Logged out successfully" });
     });
   });
-
-  app.get("/api/user", (req, res) => {
-    if (!req.isAuthenticated()) {
-      return res.status(401).json({ message: "Authentication required" });
-    }
-    // Return user without password
-    const { password, ...userWithoutPassword } = req.user;
-    res.json(userWithoutPassword);
-  });
+  
 }
