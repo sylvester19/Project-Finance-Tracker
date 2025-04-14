@@ -1,7 +1,7 @@
 import React from "react";
 import { Link, useLocation } from "wouter";
 import { UserAvatar } from "./user-avatar";
-import { useAuth } from "@/hooks/use-auth";
+import { useAuth } from "@/hooks/useAuth";
 import { 
   BarChart3, SunIcon, Users, FileText, 
   Settings, ShieldCheck, LogOut, 

@@ -28,7 +28,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { formatCurrency, formatDate, getStatusColor, formatStatus, calculatePercentage } from "@/lib/utils";
-import { useAuth } from "@/hooks/use-auth";
+import { useAuth } from "@/hooks/useAuth";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { 

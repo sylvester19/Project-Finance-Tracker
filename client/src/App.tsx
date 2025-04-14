@@ -16,7 +16,7 @@ import UserManagement from "@/pages/user-management";
 import Login from "@/pages/login";
 import Register from "@/pages/register";
 import { AppShell } from "@/components/layout/app-shell";
-import { AuthProvider, useAuth } from "@/hooks/use-auth";
+import { AuthProvider, useAuth } from "@/hooks/useAuth";
 
 // Protected route wrapper
 function ProtectedRoute({ component: Component, ...rest }: any) {

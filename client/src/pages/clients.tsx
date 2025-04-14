@@ -43,7 +43,7 @@ import { z } from "zod";
 import { insertClientSchema } from "@shared/schema";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { useAuth } from "@/hooks/use-auth";
+import { useAuth } from "@/hooks/useAuth";
 import { Plus, Search, Users, Mail, Phone } from "lucide-react";
 
 interface Client {

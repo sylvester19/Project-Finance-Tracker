@@ -17,6 +17,7 @@ interface AuthContextType {
   login: (username: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
   getAccessToken: () => string | null; // Add getAccessToken function
+  authenticatedFetch: (url: string, options?: RequestInit) => Promise<Response>; // Add authenticatedFetch to the context
 }
 
 const AuthContext = createContext<AuthContextType>({
@@ -25,12 +26,14 @@ const AuthContext = createContext<AuthContextType>({
   isLoading: true,
   login: async () => {},
   logout: async () => {},
-  getAccessToken: () => null, // Initialize getAccessToken
+  getAccessToken: () => null, // Initialize getAccessToken,
+  authenticatedFetch: async () => { throw new Error("authenticatedFetch not implemented"); } // Provide a default implementation
 });
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isRefreshingToken, setIsRefreshingToken] = useState(false);  
 
   const getAccessToken = (): string | null => {
     return localStorage.getItem('access_token');
@@ -38,6 +41,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   // Function to refresh the access token
   const refreshAccessToken = async (): Promise<string | null> => {
+    if (isRefreshingToken) {
+      return null; // Prevent concurrent refresh requests
+    }
+
+    setIsRefreshingToken(true);
+
     try {
       const response = await fetch("/api/refresh", {
         method: "POST",
@@ -49,8 +58,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (response.status === 403) {
           // Refresh token expired or invalid
           Cookies.remove('refreshToken'); // Remove the refresh token cookie
-          setUser(null); // Clear user data
           localStorage.removeItem('access_token'); // Remove access token
+          setUser(null); // Clear user data
           window.location.href = '/login'; // Redirect to login page
           return null;
         }
@@ -64,6 +73,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } catch (error) {
       console.error("Error refreshing token:", error);
       return null;
+    }   finally {
+      setIsRefreshingToken(false);
     }
   };
 
@@ -87,14 +98,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     }
 
-    // Add the access token to the request headers
-    const authOptions: RequestInit = {
-      ...options,
-      headers: {
-        ...options.headers,
-        Authorization: `Bearer ${accessToken}`,
-      },
-    };
+      // Add the access token to the request headers
+      const authOptions: RequestInit = {
+        ...options,
+        headers: {
+          ...options.headers,
+          Authorization: `Bearer ${accessToken}`,
+        },
+      };
 
     const response = await fetch(url, authOptions);
 
@@ -120,9 +131,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // Check if user is already logged in via session cookie
   useEffect(() => {
     const checkAuthStatus = async () => {
+      setIsLoading(true);
       try {
         const accessToken = getAccessToken();
         if (accessToken) {
+          // TODO :: User proper backend route to get the data of the user, ("/api/user") is not correct 
           const response = await authenticatedFetch("/api/user");
 
           if (response.ok) {
@@ -204,7 +217,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (response.ok) {
         setUser(null);
         localStorage.removeItem('access_token'); // Remove access token
+        //TODO:: checnk with the backend because it is  also removing the cookie from the browser  
         Cookies.remove('refreshToken'); // Remove the refresh token cookie
+        window.location.href = '/login';
       } else {
         console.error("Logout failed:", await response.text());
       }
@@ -221,7 +236,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         isLoading,
         login,
         logout,
-        getAccessToken, // Add getAccessToken to the context
+        getAccessToken,
+        authenticatedFetch
       }}
     >
       {children}

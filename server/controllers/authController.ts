@@ -1,6 +1,8 @@
 import { Request, Response } from "express";
 import { authService } from "../services/authService";
 
+const REFRESH_TOKEN_EXPIRY_DAYS = parseInt(process.env.REFRESH_TOKEN_EXPIRY_DAYS || "7", 10);
+
 export const authController = {
   async register(req: Request, res: Response) {
     try {
@@ -30,10 +32,20 @@ export const authController = {
 
   async refresh(req: Request, res: Response) {
     try {
-      const newToken = await authService.refresh(req.cookies.refreshToken);
-      res.json({ accessToken: newToken });
+      const { accessToken, refreshToken } = await authService.refresh(req.cookies.refreshToken);
+
+      // Set the new refresh token in an HTTP-only cookie
+      res.cookie("refreshToken", refreshToken, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production", // Only set secure in production
+        sameSite: "strict", // Or 'lax' depending on your needs
+        expires: new Date(Date.now() + REFRESH_TOKEN_EXPIRY_DAYS * 24 * 60 * 60 * 1000),
+      });
+
+      res.json({ accessToken });
     } catch (err: any) {
-      res.status(403).json({ message: err.message });
+      console.error("Refresh token error:", err); // Log the error
+      res.status(403).json({ message: err.message || "Invalid refresh token" }); // Provide a more informative error message
     }
   },
 

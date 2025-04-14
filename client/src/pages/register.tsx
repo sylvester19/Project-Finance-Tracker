@@ -1,6 +1,6 @@
 import React from "react";
 import { RegisterForm } from "@/components/auth/register-form";
-import { useAuth } from "@/hooks/use-auth";
+import { useAuth } from "@/hooks/useAuth";
 import { useLocation } from "wouter";
 
 export default function Register() {

@@ -6,7 +6,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Link, useLocation } from 'wouter';
 import { useMobile } from '@/hooks/use-mobile';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { apiRequest } from '@/lib/queryClient';
+import { useAuth } from '@/hooks/useAuth';
 
 export default function ExpensesTable() {
   const [page, setPage] = useState(1);
@@ -14,17 +14,30 @@ export default function ExpensesTable() {
   const [, setLocation] = useLocation();
   const isMobile = useMobile();
   const pageSize = 3;
-
+  const { authenticatedFetch } = useAuth();
+  
   // Fetch expenses
   const { data: expenses, isLoading: isLoadingExpenses } = useQuery({
     queryKey: ['/api/expenses'],
-    queryFn: () => apiRequest("GET", "/api/expenses"),
+    queryFn: async () => {
+      const response = await authenticatedFetch("/api/expenses");
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      return await response.json();
+    },
   });
 
   // Fetch projects for filter
   const { data: projects, isLoading: isLoadingProjects } = useQuery({
     queryKey: ['/api/projects'],
-    queryFn: () => apiRequest("GET", "/api/projects"),
+    queryFn: async () => {
+      const response = await authenticatedFetch("/api/projects");
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      return await response.json();
+    },
   });
 
   const goToExpenseDetails = (id: number) => {

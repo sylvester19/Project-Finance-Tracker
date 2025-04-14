@@ -1,5 +1,5 @@
 import express, { type Request, Response, NextFunction } from "express";
-import { registerRoutes } from "./routes";
+import routes  from "./routes/routes";
 import { setupVite, serveStatic, log } from "./vite";
 import cookieParser from "cookie-parser";
 
@@ -41,7 +41,7 @@ app.use((req, res, next) => {
 
 
 (async () => {
-  const server = await registerRoutes(app);
+  app.use('/api', routes);
 
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
     const status = err.status || err.statusCode || 500;
@@ -52,13 +52,13 @@ app.use((req, res, next) => {
   });
 
   if (app.get("env") === "development") {
-    await setupVite(app, server);
+    await setupVite(app, null);
   } else {
     serveStatic(app);
   }
 
   const port = 5000;
-  server.listen({
+  app.listen({
     port,
     host: "0.0.0.0",
     reusePort: true,

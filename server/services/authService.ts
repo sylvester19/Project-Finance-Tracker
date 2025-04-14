@@ -39,17 +39,41 @@ export const authService = {
   },
 
   async refresh(refreshToken: string) {
-    const payload = verifyRefreshToken(refreshToken);
+    try {
+      const payload = verifyRefreshToken(refreshToken);
 
-    const dbToken = await storage.getRefreshToken(refreshToken);
-    if (!dbToken || new Date(dbToken.expiresAt) < new Date()) {
-      throw new Error("Refresh token expired or invalid");
+      const dbToken = await storage.getRefreshToken(refreshToken);
+      if (!dbToken || new Date(dbToken.expiresAt) < new Date()) {
+        throw new Error("Refresh token expired or invalid");
+      }
+
+      // Invalidate the old refresh token
+      await storage.deleteRefreshToken(refreshToken);
+
+      // Generate a new refresh token
+      const newRefreshToken = generateRefreshToken({
+        id: parseInt(payload.userId),
+        role: payload.role,
+      });
+
+      // Save the new refresh token to the database
+      await storage.saveRefreshToken( 
+        parseInt(payload.userId),
+        newRefreshToken,
+        new Date(Date.now() + REFRESH_TOKEN_EXPIRY_DAYS * 24 * 60 * 60 * 1000),
+      );
+
+      // Generate a new access token
+      const accessToken = generateAccessToken({
+        id: parseInt(payload.userId),
+        role: payload.role,
+      });
+
+      return { accessToken, refreshToken: newRefreshToken };
+    } catch (error: any) {
+      console.error("Refresh token error:", error);
+      throw new Error("Invalid refresh token");
     }
-
-    return generateAccessToken({
-      id: parseInt(payload.userId),
-      role: payload.role,
-    });
   },
 
   async logout(refreshToken: string) {

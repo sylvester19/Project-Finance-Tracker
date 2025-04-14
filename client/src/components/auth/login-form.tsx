@@ -14,7 +14,7 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
-import { useAuth } from "@/hooks/use-auth";
+import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { SunIcon } from "lucide-react";
 

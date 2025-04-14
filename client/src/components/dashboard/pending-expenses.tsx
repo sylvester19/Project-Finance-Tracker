@@ -4,8 +4,9 @@ import { Button } from "@/components/ui/button";
 import { Link } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { formatCurrency } from "@/lib/utils";
-import { apiRequest, queryClient } from "@/lib/queryClient";
+import { queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/useAuth"; 
 
 interface Expense {
   id: number;
@@ -40,16 +41,25 @@ interface Project {
 
 export function PendingExpenses() {
   const { toast } = useToast();
+  const { authenticatedFetch } = useAuth();
 
   // Fetch pending expenses
   const { data: expenses = [], isLoading } = useQuery<Expense[]>({
     queryKey: ['/api/expenses?status=pending'],
+    queryFn: async () => {
+      const response = await authenticatedFetch(`/api/expenses?status=pending`);
+      return await response.json();
+    },
     staleTime: 60000
   });
 
   // Fetch users for expense submitter names
   const { data: users = [] } = useQuery<User[]>({
     queryKey: ['/api/users'],
+    queryFn: async () => {
+      const response = await authenticatedFetch(`/api/users`);
+      return await response.json();
+    },
     staleTime: 300000
   });
 
@@ -57,8 +67,8 @@ export function PendingExpenses() {
   const { data: projects = [] } = useQuery<Project[]>({
     queryKey: ['/api/projects'],
     queryFn: async () => {
-      const res = await apiRequest("GET", "/api/projects");
-      return res.json();
+      const response = await authenticatedFetch("/api/projects");
+      return await response.json();
     },
     staleTime: 300000
   });
@@ -66,8 +76,14 @@ export function PendingExpenses() {
   // Handle expense approval/rejection
   const updateExpenseMutation = useMutation({
     mutationFn: async ({ id, status, feedback }: { id: number; status: string; feedback?: string }) => {
-      const res = await apiRequest('PATCH', `/api/expenses/${id}/status`, { status, feedback });
-      return res.json();
+      const response = await authenticatedFetch(`/api/expenses/${id}/status`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ status, feedback }),
+      });
+      return response.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/expenses'] });

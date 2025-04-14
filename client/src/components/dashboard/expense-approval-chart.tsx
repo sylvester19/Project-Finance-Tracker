@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from 'recharts';
 import { Skeleton } from '@/components/ui/skeleton';
-import { apiRequest } from '@/lib/queryClient';
+import { useAuth } from '@/hooks/useAuth';
 
 const COLORS = ['hsl(var(--secondary))', 'hsl(var(--accent))', 'hsl(var(--destructive))'];
 const RADIAN = Math.PI / 180;
@@ -32,11 +32,18 @@ const renderCustomizedLabel = ({ cx, cy, midAngle, innerRadius, outerRadius, per
 
 export default function ExpenseApprovalChart() {
   const [projectFilter, setProjectFilter] = useState('all');
+  const { authenticatedFetch } = useAuth();
   
   // Fetch projects for filter
   const { data: projects } = useQuery({
     queryKey: ['/api/projects'],
-    queryFn: () => apiRequest("GET", "/api/projects"),
+    queryFn: async () => {
+      const response = await authenticatedFetch("/api/projects");
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      return await response.json();
+    },
   });
   
   // Fetch approval rates

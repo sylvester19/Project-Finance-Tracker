@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { useAuth } from '@/hooks/use-auth';
+import { useAuth } from '@/hooks/useAuth';
 import { User, Settings, LogOut } from 'lucide-react';
 
 export default function UserDropdown() {

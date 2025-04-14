@@ -1,6 +1,6 @@
 import React from "react";
 import { LoginForm } from "@/components/auth/login-form";
-import { useAuth } from "@/hooks/use-auth";
+import { useAuth } from "@/hooks/useAuth";
 import { useLocation } from "wouter";
 
 export default function Login() {

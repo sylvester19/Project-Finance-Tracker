@@ -22,7 +22,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { formatCurrency, formatDate, getStatusColor, formatStatus } from "@/lib/utils";
-import { useAuth } from "@/hooks/use-auth";
+import { useAuth } from "@/hooks/useAuth";
 import { Plus, Search, FileText } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 

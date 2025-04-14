@@ -22,7 +22,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { SunIcon } from "lucide-react";
 

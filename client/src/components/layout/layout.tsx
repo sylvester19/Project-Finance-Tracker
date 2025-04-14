@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useAuth } from '@/hooks/use-auth';
+import { useAuth } from '@/hooks/useAuth';
 import {Sidebar} from './sidebar';
 import MobileSidebar from './mobile-sidebar';
 import { useLocation } from 'wouter';
