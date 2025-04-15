@@ -3,6 +3,9 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from 'recharts';
 import { Skeleton } from '@/components/ui/skeleton';
+import { useAuth } from "@/hooks/useAuth";
+import { SpendingCategory } from '@shared/schema';
+
 
 const COLORS = [
   'hsl(var(--primary))', 
@@ -14,9 +17,15 @@ const COLORS = [
 ];
 
 export default function SpendingCategoriesChart() {
+  const { authenticatedFetch } = useAuth();
+
   // Fetch top spending categories
-  const { data: categories, isLoading } = useQuery({
-    queryKey: ['/api/analytics/top-categories'],
+  const { data: categories, isLoading } = useQuery<SpendingCategory[]>({
+    queryKey: ['/api/analytics/spending-by-category'],
+    queryFn: async () => {
+      const res = await authenticatedFetch("GET", "/api/analytics/spending-by-category");
+      return res.json();
+    },
   });
 
   // Format data for chart

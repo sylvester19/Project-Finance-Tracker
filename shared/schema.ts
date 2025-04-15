@@ -187,7 +187,8 @@ export type InsertSessionToken = z.infer<typeof insertSessionTokenSchema>;
 export type SessionToken = typeof sessionToken.$inferSelect;
 
 export type InsertUser = z.infer<typeof insertUserSchema>;
-export type User = typeof users.$inferSelect;
+export type InternalUser  = typeof users.$inferSelect;
+export type User = Omit<InternalUser , 'password'>;
 
 export type InsertClient = z.infer<typeof insertClientSchema>;
 export type Client = typeof clients.$inferSelect;
@@ -202,3 +203,29 @@ export type InsertActivityLog = z.infer<typeof insertActivityLogSchema>;
 export type ActivityLog = typeof activityLogs.$inferSelect;
 
 export type LoginCredentials = z.infer<typeof userLoginSchema>;
+
+// Custom type 
+export type ExpenseDetails = {
+  expense: Expense;
+  submitter?: User | null; 
+  reviewer?: User | null;   
+  project?: Project | null;
+};
+
+export type SpendingCategory = {
+  category: ExpenseCategoryType;
+  amount: number;
+};
+
+export type MonthlySpending = {
+  month: string;
+  equipment: number;
+  labor: number;
+  transport: number;
+};
+
+export type ProjectBudgetComparison = {
+  project: string;
+  budget: number;
+  spent: number;
+};

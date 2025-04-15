@@ -25,7 +25,6 @@ import { useLocation } from "wouter";
 import { formatCurrency, formatDate, getStatusColor, formatStatus, calculatePercentage } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
 import { Plus, Search, PanelTop } from "lucide-react";
-import { apiRequest } from "@/lib/queryClient";
 
 interface Project {
   id: number;
@@ -54,12 +53,13 @@ export default function Projects() {
   const { user } = useAuth();
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
+  const { authenticatedFetch } = useAuth();
 
   // Fetch projects
   const { data: projects = [], isLoading } = useQuery<Project[]>({
     queryKey: ['/api/projects'],
     queryFn: async () => {
-      const res = await apiRequest("GET", "/api/projects");
+      const res = await authenticatedFetch("GET", "/api/projects");
       return res.json();
     },
     staleTime: 60000

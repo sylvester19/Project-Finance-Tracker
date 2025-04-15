@@ -23,9 +23,7 @@ export const getQueryFn: <T>(options: {
     }
 
     try {
-      const res = await authenticatedFetch(queryKey[0] as string, {
-        credentials: "include", // Important for sending cookies
-      });
+      const res = await authenticatedFetch("GET", queryKey[0] as string);
 
       if (unauthorizedBehavior === "returnNull" && res.status === 401) {
         return null;

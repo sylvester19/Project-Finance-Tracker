@@ -3,40 +3,39 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Link } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { CheckCircle, XCircle, AlertCircle, Clock } from "lucide-react";
-import { apiRequest } from "@/lib/queryClient";
-
-interface ActivityLog {
-  id: number;
-  userId: number;
-  projectId?: number;
-  expenseId?: number;
-  action: string;
-  details: string;
-  timestamp: string;
-}
-
-interface User {
-  id: number;
-  name: string;
-  username: string;
-  role: string;
-}
-
-interface Project {
-  id: number;
-  name: string;
-}
+import { useAuth } from "@/hooks/useAuth";
+import { ActivityLog, User, Project, Expense } from "@shared/schema";
 
 export function RecentActivity() {
+  const { authenticatedFetch } = useAuth();
+
   // Fetch activity logs
   const { data: logs = [], isLoading } = useQuery<ActivityLog[]>({
     queryKey: ['/api/activity-logs'],
+    queryFn: async () => {
+      const res = await authenticatedFetch("GET", "/api/activity-logs");
+      return res.json();
+    },
     staleTime: 30000
   });
 
   // Fetch users for displaying names
   const { data: users = [] } = useQuery<User[]>({
     queryKey: ['/api/users'],
+    queryFn: async () => {
+      const res = await authenticatedFetch("GET", "/api/users");
+      return res.json();
+    },
+    staleTime: 300000
+  });
+
+  // Fetch expenses for displaying details
+  const { data: expenses = [] } = useQuery<Expense[]>({
+    queryKey: ['/api/expenses'],
+    queryFn: async () => {
+      const res = await authenticatedFetch("GET", "/api/expenses");
+      return res.json();
+    },
     staleTime: 300000
   });
 
@@ -44,7 +43,7 @@ export function RecentActivity() {
   const { data: projects = [] } = useQuery<Project[]>({
     queryKey: ['/api/projects'],
     queryFn: async () => {
-      const res = await apiRequest("GET", "/api/projects");
+      const res = await authenticatedFetch("GET", "/api/projects");
       return res.json();
     },
     staleTime: 300000
@@ -61,6 +60,13 @@ export function RecentActivity() {
     if (!projectId) return null;
     const project = projects.find(p => p.id === projectId);
     return project ? project.name : 'Unknown Project';
+  };
+
+  // Get expense amount by ID
+  const getExpenseAmount = (expenseId?: number) => {
+    if (!expenseId) return null;
+    const expense = expenses.find(e => e.id === expenseId);
+    return expense ? expense.amount : null;
   };
 
   // Format timestamp to relative time
@@ -148,9 +154,14 @@ export function RecentActivity() {
                         {log.expenseId && (
                           <Link href={`/expenses/${log.expenseId}`}>
                             <a className="font-medium text-gray-900">
-                              {log.details.includes('$') 
-                                ? log.details.split(' ').find(part => part.startsWith('$')) 
-                                : ''}
+                              {log.details && log.action === 'rejected_expense' && (
+                                <div className="mt-2 text-sm text-gray-700 bg-gray-50 p-3 rounded-md">
+                                  <p>{log.details.includes('with feedback:') 
+                                    ? log.details.split('with feedback:')[1].trim() 
+                                    : log.details}
+                                  </p>
+                                </div>
+                              )}
                             </a>
                           </Link>
                         )}
@@ -164,7 +175,7 @@ export function RecentActivity() {
                           </>
                         )}
                       </div>
-                      <p className="mt-0.5 text-sm text-gray-500">{formatRelativeTime(log.timestamp)}</p>
+                      <p className="mt-0.5 text-sm text-gray-500">{formatRelativeTime(String(log.timestamp))}</p>
                     </div>
                     
                     {log.details && log.action === 'rejected_expense' && (

@@ -15,15 +15,12 @@ export default function ExpensesTable() {
   const isMobile = useMobile();
   const pageSize = 3;
   const { authenticatedFetch } = useAuth();
-  
+
   // Fetch expenses
   const { data: expenses, isLoading: isLoadingExpenses } = useQuery({
     queryKey: ['/api/expenses'],
     queryFn: async () => {
-      const response = await authenticatedFetch("/api/expenses");
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
+      const response = await authenticatedFetch("GET", "/api/expenses");
       return await response.json();
     },
   });
@@ -32,10 +29,7 @@ export default function ExpensesTable() {
   const { data: projects, isLoading: isLoadingProjects } = useQuery({
     queryKey: ['/api/projects'],
     queryFn: async () => {
-      const response = await authenticatedFetch("/api/projects");
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
+      const response = await authenticatedFetch("GET","/api/projects");      
       return await response.json();
     },
   });

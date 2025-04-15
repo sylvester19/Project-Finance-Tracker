@@ -23,7 +23,7 @@ import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
 import { formatCurrency, formatDate, getStatusColor, formatStatus } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
-import { apiRequest, queryClient } from "@/lib/queryClient";
+import { queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { 
   ArrowLeft, Edit, Check, X, Calendar, DollarSign, 
@@ -38,10 +38,15 @@ export default function ExpenseDetail() {
   const { toast } = useToast();
   const [feedback, setFeedback] = React.useState("");
   const [isRejectDialogOpen, setIsRejectDialogOpen] = React.useState(false);
-
+  const { authenticatedFetch } = useAuth()
+  
   // Fetch expense details
   const { data: expense, isLoading: isExpenseLoading } = useQuery({
     queryKey: [`/api/expenses/${expenseId}`],
+    queryFn: async () => {
+      const res = await authenticatedFetch("GET",`/api/expenses/${expenseId}`);
+      return await res.json();
+    },
     staleTime: 60000
   });
 
@@ -49,8 +54,8 @@ export default function ExpenseDetail() {
   const { data: project, isLoading: isProjectLoading } = useQuery({
     queryKey: [`/api/projects/${expense?.projectId}`],
     queryFn: async () => {
-      const res = await apiRequest("GET", `/api/projects/${expense?.projectId}`);
-      return res.json();
+      const res = await authenticatedFetch("GET",`/api/projects/${expense?.projectId}`);
+      return await res.json();
     },
     enabled: !!expense?.projectId,
     staleTime: 60000
@@ -59,7 +64,7 @@ export default function ExpenseDetail() {
   // Update expense status mutation
   const updateStatusMutation = useMutation({
     mutationFn: async ({ status, feedback }: { status: string; feedback?: string }) => {
-      const res = await apiRequest('PATCH', `/api/expenses/${expenseId}/status`, { status, feedback });
+      const res = await authenticatedFetch('PATCH', `/api/expenses/${expenseId}/status`);
       return res.json();
     },
     onSuccess: () => {

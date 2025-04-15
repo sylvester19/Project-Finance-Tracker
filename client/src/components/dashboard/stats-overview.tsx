@@ -4,7 +4,9 @@ import { Link } from "wouter";
 import { formatCurrency } from "@/lib/utils";
 import { useQuery } from "@tanstack/react-query";
 import { FileText, PanelTop, BarChart3, DollarSign } from "lucide-react";
-import { apiRequest } from "@/lib/queryClient";
+import { useAuth } from "@/hooks/useAuth";
+import { Expense, Project, ProjectBudgetComparison } from "@shared/schema";
+
 
 export interface StatsCardProps {
   title: string;
@@ -65,25 +67,35 @@ export function StatsCard({
 }
 
 export function StatsOverview() {
+  const { authenticatedFetch } = useAuth();
+
   // Fetch active projects count
-  const projectsQuery = useQuery({ 
+  const projectsQuery = useQuery<Project[]>({ 
     queryKey: ['/api/projects'],
     queryFn: async () => {
-      const res = await apiRequest("GET", "/api/projects");
+      const res = await authenticatedFetch("GET", "/api/projects");
       return res.json();
     },
     staleTime: 60000
   });
   
   // Fetch pending expenses
-  const expensesQuery = useQuery({ 
-    queryKey: ['/api/expenses?status=pending'],
+  const expensesQuery = useQuery<Expense[]>({ 
+    queryKey: ['/api/expenses/status/pending'],
+    queryFn: async () => {
+      const res = await authenticatedFetch("GET", "/api/expenses/status/pending");
+      return res.json();
+    },
     staleTime: 60000
   });
   
   // Get budget utilization from analytics
-  const budgetQuery = useQuery({ 
-    queryKey: ['/api/analytics/budget-vs-spent'],
+  const budgetQuery = useQuery<ProjectBudgetComparison[]>({ 
+    queryKey: ['/api/analytics/total-budget-vs-spent'],
+    queryFn: async () => {
+      const res = await authenticatedFetch("GET", "/api/analytics/total-budget-vs-spent");
+      return res.json();
+    },
     staleTime: 60000
   });
   

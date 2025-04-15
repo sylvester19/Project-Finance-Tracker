@@ -1,5 +1,4 @@
 import { storage } from "../storage";
-import { hashPassword, comparePasswords } from "../../utils/session";
 import {
   generateAccessToken,
   generateRefreshToken,
@@ -23,8 +22,9 @@ export const authService = {
   },
 
   async login(data: LoginInput) {
-    const user = await storage.getUserByUsername(data.username);
-    if (!user || !(await comparePasswords(data.password, user.password))) {
+    const user = await storage.verifyUser(data.username, data.password);
+
+    if (!user) {
       throw new Error("Invalid credentials");
     }
 
@@ -90,7 +90,6 @@ export const authService = {
     const user = await storage.getUser(parseInt(payload.userId));
     if (!user) throw new Error("User not found");
 
-    const { password, ...userData } = user;
-    return userData;
+    return user;
   }
 };

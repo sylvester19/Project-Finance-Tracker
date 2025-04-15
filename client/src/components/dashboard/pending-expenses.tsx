@@ -47,7 +47,7 @@ export function PendingExpenses() {
   const { data: expenses = [], isLoading } = useQuery<Expense[]>({
     queryKey: ['/api/expenses?status=pending'],
     queryFn: async () => {
-      const response = await authenticatedFetch(`/api/expenses?status=pending`);
+      const response = await authenticatedFetch("GET",`/api/expenses?status=pending`);
       return await response.json();
     },
     staleTime: 60000
@@ -57,7 +57,7 @@ export function PendingExpenses() {
   const { data: users = [] } = useQuery<User[]>({
     queryKey: ['/api/users'],
     queryFn: async () => {
-      const response = await authenticatedFetch(`/api/users`);
+      const response = await authenticatedFetch("GET",`/api/users`);
       return await response.json();
     },
     staleTime: 300000
@@ -67,7 +67,7 @@ export function PendingExpenses() {
   const { data: projects = [] } = useQuery<Project[]>({
     queryKey: ['/api/projects'],
     queryFn: async () => {
-      const response = await authenticatedFetch("/api/projects");
+      const response = await authenticatedFetch("GET","/api/projects");
       return await response.json();
     },
     staleTime: 300000
@@ -76,8 +76,7 @@ export function PendingExpenses() {
   // Handle expense approval/rejection
   const updateExpenseMutation = useMutation({
     mutationFn: async ({ id, status, feedback }: { id: number; status: string; feedback?: string }) => {
-      const response = await authenticatedFetch(`/api/expenses/${id}/status`, {
-        method: 'PATCH',
+      const response = await authenticatedFetch("PATCH", `/api/expenses/${id}/status`, {
         headers: {
           'Content-Type': 'application/json',
         },

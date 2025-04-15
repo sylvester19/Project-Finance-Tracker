@@ -22,7 +22,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { apiRequest, queryClient } from "@/lib/queryClient";
+import { queryClient} from "@/lib/queryClient";
+import { useAuth } from "@/hooks/useAuth"
 import { useToast } from "@/hooks/use-toast";
 import { useLocation } from "wouter";
 import { CalendarIcon } from "lucide-react";
@@ -38,11 +39,17 @@ interface ProjectFormProps {
 export function ProjectForm({ projectId, defaultValues }: ProjectFormProps) {
   const { toast } = useToast();
   const [, navigate] = useLocation();
+  const { authenticatedFetch } = useAuth();
+      
   const isEditMode = !!projectId;
 
   // Fetch clients for the dropdown
-  const { data: clients = [], isLoading: isClientsLoading } = useQuery({
+  const { data: clients = [], isLoading: isClientsLoading } = useQuery<any[]>({
     queryKey: ['/api/clients'],
+    queryFn: async () => {
+      const res = await authenticatedFetch("GET", "/api/clients");
+      return res.json();
+    },
     staleTime: 60000
   });
 
@@ -59,7 +66,12 @@ export function ProjectForm({ projectId, defaultValues }: ProjectFormProps) {
 
   const createMutation = useMutation({
     mutationFn: async (data: z.infer<typeof projectFormSchema>) => {
-      const res = await apiRequest("POST", "/api/projects", data);
+      const res = await authenticatedFetch("POST", "/api/projects", {
+        body: JSON.stringify(data),
+        headers: {
+          "Content-Type": "application/json",
+        },
+      });
       return res.json();
     },
     onSuccess: () => {
@@ -81,7 +93,12 @@ export function ProjectForm({ projectId, defaultValues }: ProjectFormProps) {
 
   const updateMutation = useMutation({
     mutationFn: async (data: z.infer<typeof projectFormSchema>) => {
-      const res = await apiRequest("PATCH", `/api/projects/${projectId}`, data);
+      const res = await authenticatedFetch("PATCH", `/api/projects/${projectId}`, {
+        body: JSON.stringify(data),
+        headers: {
+          "Content-Type": "application/json",
+        },
+      });
       return res.json();
     },
     onSuccess: () => {

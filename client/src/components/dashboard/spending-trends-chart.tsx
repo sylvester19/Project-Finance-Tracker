@@ -3,6 +3,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { useQuery } from "@tanstack/react-query";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts";
 import { formatCurrency } from "@/lib/utils";
+import { useAuth } from "@/hooks/useAuth";
+import { MonthlySpending } from "@shared/schema";
 
 function CustomTooltip({ active, payload, label }: any) {
   if (active && payload && payload.length) {
@@ -22,8 +24,14 @@ function CustomTooltip({ active, payload, label }: any) {
 }
 
 export function SpendingTrendsChart() {
-  const { data, isLoading, error } = useQuery({
-    queryKey: ['/api/analytics/monthly-spending'],
+  const { authenticatedFetch } = useAuth();
+
+  const { data: monthlySpending, isLoading, error } = useQuery<MonthlySpending[]>({
+    queryKey: ['/api/analytics/monthly-spending-trends'],
+    queryFn: async () => {
+      const res = await authenticatedFetch("GET", "/api/analytics/monthly-spending-trends");
+      return res.json();
+    },
     staleTime: 60000
   });
 
@@ -45,7 +53,7 @@ export function SpendingTrendsChart() {
           ) : (
             <ResponsiveContainer width="100%" height="100%">
               <LineChart
-                data={data}
+                data={monthlySpending}
                 margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
               >
                 <CartesianGrid strokeDasharray="3 3" />

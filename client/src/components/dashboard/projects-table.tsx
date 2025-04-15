@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,43 +9,62 @@ import { formatCurrency, formatDate, getStatusColor, formatStatus, calculatePerc
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Progress } from "@/components/ui/progress";
 import { PanelTop, Search, ChevronLeft, ChevronRight } from "lucide-react";
-import { apiRequest } from "@/lib/queryClient";
+import { Client, Project } from "@shared/schema";
+import { useAuth } from "@/hooks/useAuth";
 
-interface Project {
-  id: number;
-  name: string;
-  clientId: number;
-  status: string;
-  startDate: string;
-  budget: number;
-  createdById: number;
-}
+// interface Project {
+//   id: number;
+//   name: string;
+//   clientId: number;
+//   status: string;
+//   startDate: string;
+//   budget: number;
+//   createdById: number;
+// }
 
 export function ProjectsTable() {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [currentPage, setCurrentPage] = useState(1);
+  const { authenticatedFetch } = useAuth();
   const projectsPerPage = 4;
 
   // Fetch projects
-  const { data: projects = [], isLoading } = useQuery({
+  const { data: projects = [], isLoading } = useQuery<Project[]>({
     queryKey: ['/api/projects'],
     queryFn: async () => {
-      const res = await apiRequest("GET", "/api/projects");
-      return res.json();
+      const res = await authenticatedFetch("GET", "/api/projects");
+      if (!res.ok) {
+        throw new Error("Failed to fetch projects");
+      }
+      return await res.json() as Promise<Project[]>; // Type assertion
     },
     staleTime: 60000
   });
 
   // Fetch clients for project client names
-  const { data: clients = [] } = useQuery({
+  const { data: clients = [] } = useQuery<Client[]>({
     queryKey: ['/api/clients'],
+    queryFn: async () => {
+      const res = await authenticatedFetch("GET", "/api/clients");
+      if (!res.ok) {
+        throw new Error("Failed to fetch clients");
+      }
+      return await res.json() as Promise<Client[]>; // Type assertion
+    },
     staleTime: 60000
   });
 
   // Calculate expenses per project for progress bars
   const { data: budgetVsSpent = [] } = useQuery({
-    queryKey: ['/api/analytics/budget-vs-spent'],
+    queryKey: ['/api/analytics/total-budget-vs-spent'],
+    queryFn: async () => {
+      const res = await authenticatedFetch("GET", "/api/analytics/total-budget-vs-spent");
+      if (!res.ok) {
+        throw new Error("Failed to fetch budget vs spent data");
+      }
+      return await res.json() as Promise<{ project: string; budget: number; spent: number }[]>; // Type assertion
+    },
     staleTime: 60000
   });
 

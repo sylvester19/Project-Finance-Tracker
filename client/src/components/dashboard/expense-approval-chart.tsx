@@ -38,10 +38,7 @@ export default function ExpenseApprovalChart() {
   const { data: projects } = useQuery({
     queryKey: ['/api/projects'],
     queryFn: async () => {
-      const response = await authenticatedFetch("/api/projects");
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
+      const response = await authenticatedFetch("GET", "/api/projects");
       return await response.json();
     },
   });
@@ -49,6 +46,10 @@ export default function ExpenseApprovalChart() {
   // Fetch approval rates
   const { data: approvalRates, isLoading } = useQuery({
     queryKey: ['/api/analytics/approval-rates'],
+    queryFn: async () => {
+      const response = await authenticatedFetch("GET", "/api/analytics/approval-rates");
+      return await response.json();
+    },
   });
 
   // Format data for chart

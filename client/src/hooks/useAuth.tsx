@@ -17,7 +17,7 @@ interface AuthContextType {
   login: (username: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
   getAccessToken: () => string | null; // Add getAccessToken function
-  authenticatedFetch: (url: string, options?: RequestInit) => Promise<Response>; // Add authenticatedFetch to the context
+  authenticatedFetch: (method: string, url: string, options?: RequestInit) => Promise<Response>; // Add authenticatedFetch to the context
 }
 
 const AuthContext = createContext<AuthContextType>({
@@ -79,50 +79,51 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   // Custom fetch function with automatic token refresh
-  const authenticatedFetch = async (url: string, options: RequestInit = {}): Promise<Response> => {
+  const authenticatedFetch = async (method: string, url: string,  options: RequestInit = {}): Promise<Response> => {
     let accessToken = getAccessToken();
 
     if (!accessToken) {
-      // If no access token, check for refresh token and attempt to refresh
-      const refreshToken = Cookies.get('refreshToken');
-      if (refreshToken) {
+        // If no access token, check for refresh token and attempt to refresh
+        const refreshToken = Cookies.get('refreshToken');
+        if (!refreshToken) {
+            // No access token or refresh token, redirect to login
+            window.location.href = '/login';
+            throw new Error("No access token or refresh token");
+        }
+
         accessToken = await refreshAccessToken();
         if (!accessToken) {
-          // Token refresh failed, redirect to login (handled in refreshAccessToken)
-          throw new Error("Token refresh failed");
+            // Token refresh failed, redirect to login (handled in refreshAccessToken)
+            throw new Error("Token refresh failed");
         }
-      } else {
-        // No access token or refresh token, redirect to login
-        window.location.href = '/login';
-        throw new Error("No access token or refresh token");
-      }
     }
 
-      // Add the access token to the request headers
-      const authOptions: RequestInit = {
+    // Add the access token to the request headers
+    const authOptions: RequestInit = {
         ...options,
+        method: method, // Include the method
         headers: {
-          ...options.headers,
-          Authorization: `Bearer ${accessToken}`,
+            ...options.headers,
+            Authorization: `Bearer ${accessToken}`,
         },
-      };
+    };
 
-    const response = await fetch(url, authOptions);
+    let response = await fetch(url, authOptions);
 
     // Handle token expiration errors (401 Unauthorized)
     if (response.status === 401) {
-      accessToken = await refreshAccessToken();
-      if (!accessToken) {
-        // Token refresh failed, redirect to login (handled in refreshAccessToken)
-        throw new Error("Token refresh failed");
-      }
+        accessToken = await refreshAccessToken();
+        if (!accessToken) {
+            // Token refresh failed, redirect to login (handled in refreshAccessToken)
+            throw new Error("Token refresh failed");
+        }
 
-      // Retry the request with the new access token
-      authOptions.headers = {
-        ...options.headers,
-        Authorization: `Bearer ${accessToken}`,
-      };
-      return fetch(url, authOptions);
+        // Retry the request with the new access token
+        authOptions.headers = {
+            ...options.headers,
+            Authorization: `Bearer ${accessToken}`,
+        };
+        response = await fetch(url, authOptions); // Re-assign response
     }
 
     return response;
@@ -136,7 +137,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const accessToken = getAccessToken();
         if (accessToken) {
           // TODO :: User proper backend route to get the data of the user, ("/api/user") is not correct 
-          const response = await authenticatedFetch("/api/user");
+          const response = await authenticatedFetch("GET", "/api/user");
 
           if (response.ok) {
             const userData = await response.json();
@@ -145,7 +146,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             // If the access token is invalid, attempt to refresh it
             const newAccessToken = await refreshAccessToken();
             if (newAccessToken) {
-              const newResponse = await authenticatedFetch("/api/user");
+              const newResponse = await authenticatedFetch("GET", "/api/user");
               if (newResponse.ok) {
                 const userData = await newResponse.json();
                 setUser(userData);
@@ -190,7 +191,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       localStorage.setItem('access_token', accessToken);
 
       // Fetch user info using the access token
-      const userRes = await authenticatedFetch("/api/user");
+      const userRes = await authenticatedFetch("GET", "/api/user");
 
       const userData = await userRes.json();
       if (!userRes.ok) {

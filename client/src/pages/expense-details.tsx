@@ -7,26 +7,33 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
-import { apiRequest } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
 import { CheckIcon, XIcon, ReceiptIcon, UserIcon, CalendarIcon, FileTextIcon, InfoIcon } from 'lucide-react';
 import { Textarea } from '@/components/ui/textarea';
 import { format } from 'date-fns';
+import { ExpenseDetails } from '../../../shared/schema';
 
 export default function ExpenseDetails({ id }: { id: string }) {
   const [, setLocation] = useLocation();
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const { user } = useAuth();
+  const { authenticatedFetch } = useAuth();
+      
   
   const [activeTab, setActiveTab] = useState('details');
   const [reviewNotes, setReviewNotes] = useState('');
 
   // Fetch expense details
-  const { data: expense, isLoading } = useQuery({
-    queryKey: [`/api/expenses/${id}`],
+  const { data: expenseDetails, isLoading } = useQuery<ExpenseDetails>({
+    queryKey: [`/api/expenses/detailed/${id}`],
+    queryFn: async () => { 
+      const response = await authenticatedFetch('GET', `/api/expenses/detailed/${id}`);
+      return await response.json();
+    },
   });
+
 
   // Check if user can approve/reject expenses
   const canReviewExpense = user && (user.role === 'admin' || user.role === 'manager');
@@ -52,17 +59,22 @@ export default function ExpenseDetails({ id }: { id: string }) {
 
   // Go to project details
   const handleViewProject = () => {
-    if (expense) {
-      setLocation(`/projects/${expense.projectId}`);
+    if (expenseDetails?.expense) {
+      setLocation(`/projects/${expenseDetails.expense.projectId}`);
     }
   };
 
   // Approve expense mutation
   const approveExpense = useMutation({
     mutationFn: async () => {
-      const response = await apiRequest('PATCH', `/api/expenses/${id}`, {
-        status: 'approved',
-        notes: reviewNotes
+     const response = await authenticatedFetch('PATCH', `/api/expenses/${id}`, {
+        body: JSON.stringify({
+          status: 'approved',
+          notes: reviewNotes
+        }),
+        headers: {
+          "Content-Type": "application/json"
+        }
       });
       return response.json();
     },
@@ -87,9 +99,14 @@ export default function ExpenseDetails({ id }: { id: string }) {
   // Reject expense mutation
   const rejectExpense = useMutation({
     mutationFn: async () => {
-      const response = await apiRequest('PATCH', `/api/expenses/${id}`, {
-        status: 'rejected',
-        notes: reviewNotes
+      const response = await authenticatedFetch('PATCH', `/api/expenses/${id}`, {
+        body: JSON.stringify({
+          status: 'rejected',
+          notes: reviewNotes
+        }),
+        headers: {
+          "Content-Type": "application/json"
+        }
       });
       return response.json();
     },
@@ -141,7 +158,7 @@ export default function ExpenseDetails({ id }: { id: string }) {
     );
   }
 
-  if (!expense) {
+  if (!expenseDetails) {
     return (
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <Card>
@@ -177,7 +194,7 @@ export default function ExpenseDetails({ id }: { id: string }) {
           <Tabs value={activeTab} onValueChange={setActiveTab}>
             <TabsList className="mb-6">
               <TabsTrigger value="details">Details</TabsTrigger>
-              {canReviewExpense && expense.status === 'pending' && (
+              {canReviewExpense && expenseDetails.expense.status === 'pending' && (
                 <TabsTrigger value="review">Review</TabsTrigger>
               )}
             </TabsList>
@@ -185,72 +202,69 @@ export default function ExpenseDetails({ id }: { id: string }) {
             <TabsContent value="details">
               <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
                 <Card className="md:col-span-2">
-                  <CardHeader>
-                    <CardTitle className="text-lg font-medium flex items-center justify-between">
-                      <span>{expense.description}</span>
-                      <Badge className={`status-badge-${expense.status}`}>
-                        {expense.status.charAt(0).toUpperCase() + expense.status.slice(1)}
-                      </Badge>
-                    </CardTitle>
-                  </CardHeader>
+                  {expenseDetails && ( // Add this check
+                    <CardHeader>
+                      <CardTitle className="text-lg font-medium flex items-center justify-between">
+                        <span>{expenseDetails.expense.description}</span>
+                        <Badge className={`status-badge-${expenseDetails.expense.status}`}>
+                          {expenseDetails.expense.status.charAt(0).toUpperCase() + expenseDetails.expense.status.slice(1)}
+                        </Badge>
+                      </CardTitle>
+                    </CardHeader>
+                  )}
                   <CardContent>
                     <div className="space-y-6">
                       <div>
                         <h3 className="text-sm font-medium text-gray-500">Project</h3>
-                        <p className="mt-1 text-sm text-gray-900">{expense.project?.name}</p>
+                        <p className="mt-1 text-sm text-gray-900">{expenseDetails.project?.name}</p>
                       </div>
                       
                       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                         <div>
                           <h3 className="text-sm font-medium text-gray-500">Category</h3>
-                          <p className="mt-1 text-sm text-gray-900">{expense.category?.name}</p>
+                          <p className="mt-1 text-sm text-gray-900">{expenseDetails.expense?.category}</p>
                         </div>
                         <div>
                           <h3 className="text-sm font-medium text-gray-500">Amount</h3>
-                          <p className="mt-1 text-lg font-semibold text-gray-900">{formatCurrency(parseFloat(expense.amount))}</p>
+                          <p className="mt-1 text-lg font-semibold text-gray-900">{formatCurrency(parseFloat(String(expenseDetails.expense.amount)))}</p>
                         </div>
                       </div>
 
-                      {expense.notes && (
+                      {expenseDetails?.expense?.feedback && (
                         <div>
                           <h3 className="text-sm font-medium text-gray-500">Notes</h3>
-                          <p className="mt-1 text-sm text-gray-900">{expense.notes}</p>
+                          <p className="mt-1 text-sm text-gray-900">{expenseDetails.expense.feedback}</p>
                         </div>
                       )}
                       
-                      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                        <div className="flex items-center">
-                          <UserIcon className="h-5 w-5 text-gray-400 mr-2" />
-                          <div>
-                            <h3 className="text-sm font-medium text-gray-500">Submitted By</h3>
-                            <p className="mt-1 text-sm text-gray-900">{expense.submitter?.name}</p>
-                          </div>
-                        </div>
-                        <div className="flex items-center">
-                          <CalendarIcon className="h-5 w-5 text-gray-400 mr-2" />
-                          <div>
-                            <h3 className="text-sm font-medium text-gray-500">Submitted At</h3>
-                            <p className="mt-1 text-sm text-gray-900">{formatDate(expense.submittedAt)}</p>
-                          </div>
-                        </div>
-                      </div>
-
-                      {expense.reviewedAt && (
+                      {expenseDetails?.submitter && (
                         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                           <div className="flex items-center">
                             <UserIcon className="h-5 w-5 text-gray-400 mr-2" />
                             <div>
-                              <h3 className="text-sm font-medium text-gray-500">Reviewed By</h3>
-                              <p className="mt-1 text-sm text-gray-900">{expense.reviewer?.name || 'Unknown'}</p>
+                              <h3 className="text-sm font-medium text-gray-500">Submitted By</h3>
+                              <p className="mt-1 text-sm text-gray-900">{expenseDetails.submitter.name}</p>
                             </div>
                           </div>
                           <div className="flex items-center">
                             <CalendarIcon className="h-5 w-5 text-gray-400 mr-2" />
                             <div>
-                              <h3 className="text-sm font-medium text-gray-500">Reviewed At</h3>
-                              <p className="mt-1 text-sm text-gray-900">{formatDate(expense.reviewedAt)}</p>
+                              <h3 className="text-sm font-medium text-gray-500">Submitted At</h3>
+                              <p className="mt-1 text-sm text-gray-900">{formatDate(expenseDetails.expense.createdAt.toString())}</p>
                             </div>
                           </div>
+                        </div>
+                      )}
+
+                      {expenseDetails?.reviewer && (
+                        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                          <div className="flex items-center">
+                            <UserIcon className="h-5 w-5 text-gray-400 mr-2" />
+                            <div>
+                              <h3 className="text-sm font-medium text-gray-500">Reviewed By</h3>
+                              <p className="mt-1 text-sm text-gray-900">{expenseDetails.reviewer.name || 'Unknown'}</p>
+                            </div>
+                          </div>                          
                         </div>
                       )}
                     </div>
@@ -262,7 +276,7 @@ export default function ExpenseDetails({ id }: { id: string }) {
                     <CardTitle className="text-lg font-medium">Receipt</CardTitle>
                   </CardHeader>
                   <CardContent>
-                    {expense.receiptUrl ? (
+                    {expenseDetails?.expense?.receiptUrl ? (
                       <div className="flex flex-col items-center space-y-4">
                         <div className="w-full h-48 bg-gray-100 rounded-md flex items-center justify-center">
                           <ReceiptIcon className="h-16 w-16 text-gray-400" />
@@ -283,7 +297,7 @@ export default function ExpenseDetails({ id }: { id: string }) {
               </div>
             </TabsContent>
 
-            {canReviewExpense && expense.status === 'pending' && (
+            {canReviewExpense && expenseDetails?.expense?.status === 'pending' && (
               <TabsContent value="review">
                 <Card>
                   <CardHeader>

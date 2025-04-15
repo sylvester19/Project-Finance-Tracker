@@ -1,9 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
-import { apiRequest } from '@/lib/queryClient';
 import { useToast } from '@/hooks/use-toast';
 import { useLocation } from 'wouter';
 import {
@@ -18,11 +17,13 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { insertClientSchema } from '@shared/schema';
+import { useAuth } from '@/hooks/useAuth';
 
 // Extend the client schema with client-side validation
 const clientSchema = insertClientSchema.extend({
   contactEmail: z.string().email('Invalid email address').optional().or(z.literal('')),
   contactPhone: z.string().optional().or(z.literal('')),
+  createdById: z.number(),
 });
 
 type ClientFormValues = z.infer<typeof clientSchema>;
@@ -36,10 +37,15 @@ export default function ClientForm({ clientId }: ClientFormProps) {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const isEditing = !!clientId;
+  const { authenticatedFetch, user } = useAuth();
 
   // Fetch client if editing
   const { data: client, isLoading: isLoadingClient } = useQuery({
     queryKey: [`/api/clients/${clientId}`],
+    queryFn: async () => { // Use authenticatedFetch
+      const response = await authenticatedFetch("GET", `/api/clients/${clientId}`);     
+      return await response.json();
+    },
     enabled: isEditing,
   });
 
@@ -48,11 +54,13 @@ export default function ClientForm({ clientId }: ClientFormProps) {
     resolver: zodResolver(clientSchema),
     defaultValues: {
       name: '',
-      location: '',
       contactPerson: '',
       contactEmail: '',
       contactPhone: '',
+      createdById: user?.id || 0, // Set default value for createdById
     },
+    values: client || undefined,
+    mode: "onChange"
   });
 
   // Populate form when data is loaded
@@ -60,18 +68,26 @@ export default function ClientForm({ clientId }: ClientFormProps) {
     if (client && isEditing) {
       form.reset({
         name: client.name,
-        location: client.location,
         contactPerson: client.contactPerson || '',
         contactEmail: client.contactEmail || '',
         contactPhone: client.contactPhone || '',
+        createdById: user?.id || 0,
       });
     }
-  }, [client, form, isEditing]);
+  }, [client, form, isEditing, user]);
 
   // Create client mutation
   const createClient = useMutation({
     mutationFn: async (data: ClientFormValues) => {
-      const response = await apiRequest('POST', '/api/clients', data);
+      const response = await authenticatedFetch('POST', '/api/clients', {
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(data),
+      });
+      if (!response.ok) {
+        throw new Error("Failed to create client");
+      }
       return response.json();
     },
     onSuccess: () => {
@@ -129,12 +145,12 @@ export default function ClientForm({ clientId }: ClientFormProps) {
 
             <FormField
               control={form.control}
-              name="location"
+              name="contactPerson"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Location</FormLabel>
+                  <FormLabel>Contact Person</FormLabel>
                   <FormControl>
-                    <Input placeholder="Enter client location" {...field} disabled={isLoading || isMutating} />
+                    <Input placeholder="Enter contact name" {...field} disabled={isLoading || isMutating} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -142,20 +158,6 @@ export default function ClientForm({ clientId }: ClientFormProps) {
             />
 
             <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
-              <FormField
-                control={form.control}
-                name="contactPerson"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Contact Person</FormLabel>
-                    <FormControl>
-                      <Input placeholder="Enter contact name" {...field} disabled={isLoading || isMutating} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
               <FormField
                 control={form.control}
                 name="contactEmail"
@@ -183,6 +185,7 @@ export default function ClientForm({ clientId }: ClientFormProps) {
                   </FormItem>
                 )}
               />
+              
             </div>
 
             <div className="flex justify-end space-x-4 pt-4">

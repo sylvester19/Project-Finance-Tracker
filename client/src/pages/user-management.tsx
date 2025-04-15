@@ -49,7 +49,8 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { userRegisterSchema, UserRole } from "@shared/schema";
-import { apiRequest, queryClient } from "@/lib/queryClient";
+import { queryClient } from "@/lib/queryClient";
+import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
 import { getInitials } from "@/lib/utils";
 import { Plus, Search, MoreVertical, UserPlus, PencilIcon, Trash2Icon, CheckCircle, XCircle, AlertCircle } from "lucide-react";
@@ -70,6 +71,7 @@ export default function UserManagement() {
   const [isCreateUserOpen, setIsCreateUserOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [isConfirmDeleteOpen, setIsConfirmDeleteOpen] = useState(false);
+  const { authenticatedFetch } = useAuth();
 
   // Fetch users
   const { data: users = [], isLoading } = useQuery<User[]>({
@@ -101,7 +103,12 @@ export default function UserManagement() {
   // Create user mutation
   const createUserMutation = useMutation({
     mutationFn: async (data: z.infer<typeof formSchema>) => {
-      const res = await apiRequest("POST", "/api/register", data);
+      const res = await authenticatedFetch("POST", "/api/register", {
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(data),
+      });
       return res.json();
     },
     onSuccess: () => {
@@ -125,7 +132,8 @@ export default function UserManagement() {
   // Delete user mutation
   const deleteUserMutation = useMutation({
     mutationFn: async (userId: number) => {
-      const res = await apiRequest("DELETE", `/api/users/${userId}`, {});
+      const { authenticatedFetch } = useAuth();
+      const res = await authenticatedFetch("DELETE", `/api/users/${userId}`, {});
       return res.json();
     },
     onSuccess: () => {

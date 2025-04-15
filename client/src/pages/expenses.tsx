@@ -24,26 +24,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { formatCurrency, formatDate, getStatusColor, formatStatus } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
 import { Plus, Search, FileText } from "lucide-react";
-import { apiRequest } from "@/lib/queryClient";
+import { Expense, Project } from '../../../shared/schema';
 
-interface Expense {
-  id: number;
-  projectId: number;
-  amount: number;
-  description: string;
-  category: string;
-  receiptUrl?: string;
-  status: string;
-  submittedById: number;
-  reviewedById?: number;
-  feedback?: string;
-  createdAt: string;
-}
-
-interface Project {
-  id: number;
-  name: string;
-}
 
 export default function Expenses() {
   const [, navigate] = useLocation();
@@ -51,6 +33,8 @@ export default function Expenses() {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [categoryFilter, setCategoryFilter] = useState("all");
+  const { authenticatedFetch } = useAuth();
+      
 
   // Get status from URL query if available
   const params = new URLSearchParams(window.location.search);
@@ -72,7 +56,7 @@ export default function Expenses() {
   const { data: projects = [] } = useQuery<Project[]>({
     queryKey: ['/api/projects'],
     queryFn: async () => {
-      const res = await apiRequest("GET", "/api/projects");
+      const res = await authenticatedFetch("GET", "/api/projects");
       return res.json();
     },
     staleTime: 300000

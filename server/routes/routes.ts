@@ -41,6 +41,7 @@ router.put('/projects/:id/status', authMiddleware([UserRole.ADMIN, UserRole.MANA
 
 // Expense routes
 router.get('/expenses/:id', authMiddleware(), expenseController.getExpense); // Any authenticated user can get an expense by ID
+router.get('/expenses/detailed/:id', authMiddleware(), expenseController.getDetailedExpense);
 router.get('/expenses', authMiddleware([UserRole.ADMIN, UserRole.MANAGER]), expenseController.getExpenses); // Only admins and managers can get all expenses
 router.get('/expenses/project/:projectId', authMiddleware(), expenseController.getExpensesByProject); // Any authenticated user can get expenses by project ID
 router.get('/expenses/user/:userId', authMiddleware(), expenseController.getExpensesByUser); // Any authenticated user can get expenses submitted by a specific user

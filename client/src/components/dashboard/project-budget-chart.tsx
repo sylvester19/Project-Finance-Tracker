@@ -16,7 +16,7 @@ export default function ProjectBudgetChart() {
   const { data: projects, isLoading } = useQuery({
     queryKey: ['/api/projects'],
     queryFn: async () => {
-      const response = await authenticatedFetch("/api/projects");
+      const response = await authenticatedFetch("GET","/api/projects");
       return await response.json();
     },
   });

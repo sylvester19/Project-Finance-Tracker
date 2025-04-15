@@ -3,6 +3,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { useQuery } from "@tanstack/react-query";
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from "recharts";
 import { formatCurrency } from "@/lib/utils";
+import { useAuth } from "@/hooks/useAuth";
 
 function CustomTooltip({ active, payload, label }: any) {
   if (active && payload && payload.length) {
@@ -22,8 +23,17 @@ function CustomTooltip({ active, payload, label }: any) {
 }
 
 export function BudgetChart() {
+  const { authenticatedFetch } = useAuth();
+
   const { data, isLoading, error } = useQuery({
     queryKey: ['/api/analytics/budget-vs-spent'],
+    queryFn: async () => {
+      const res = await authenticatedFetch("GET", '/api/analytics/total-budget-vs-spent'); // Use authenticatedFetch
+      if (!res.ok) {
+        throw new Error("Failed to fetch budget data");
+      }
+      return await res.json();
+    },
     staleTime: 60000
   });
 
@@ -48,7 +58,7 @@ export function BudgetChart() {
             </div>
           ) : error ? (
             <div className="h-full w-full flex items-center justify-center text-red-500">
-              Error loading chart data
+              Error loading chart data : {error.message}
             </div>
           ) : (
             <ResponsiveContainer width="100%" height="100%">

@@ -2,12 +2,12 @@ import {
   SessionToken, sessionToken, User, InsertUser, users,
   Client, InsertClient, clients,
   Project, InsertProject, projects,
-  Expense, InsertExpense, expenses,
+  Expense, ExpenseDetails, InsertExpense, expenses,
   ActivityLog, InsertActivityLog, activityLogs,
   ExpenseStatus, UserRole, UserRoleType, ExpenseCategoryType,
 } from "@shared/schema";
 import { eq, sql } from 'drizzle-orm';
-import type { ProjectStatusType, ExpenseStatusType } from "@shared/schema";
+import type { ProjectStatusType, ExpenseStatusType, InternalUser, SpendingCategory, MonthlySpending, ProjectBudgetComparison } from "@shared/schema";
 import session from "express-session";
 import createMemoryStore from "memorystore";
 import { comparePasswords } from "../utils/session"
@@ -16,6 +16,9 @@ import { comparePasswords } from "../utils/session"
 export interface IStorage {
   // Session store for Express session
   sessionStore: session.Store;
+
+  // Transformation function
+  toSafeUser(user: InternalUser): User;
 
   // Session Token Operation
   saveRefreshToken(userId: number, refreshToken: string, expiresAt: Date): Promise<void>;
@@ -44,6 +47,7 @@ export interface IStorage {
   
   // Expense operations
   getExpense(id: number): Promise<Expense | undefined>;
+  getDetailedExpense(id: number): Promise<ExpenseDetails | undefined>;
   getExpenses(): Promise<Expense[]>;
   getExpensesByProject(projectId: number): Promise<Expense[]>;
   getExpensesByUser(userId: number): Promise<Expense[]>;
@@ -59,9 +63,9 @@ export interface IStorage {
   createActivityLog(log: InsertActivityLog): Promise<ActivityLog>;
 
   // Analytics operations
-  getTotalBudgetVsSpent(): Promise<{ project: string; budget: number; spent: number }[]>;
-  getMonthlySpendingTrends(): Promise<{ month: string; equipment: number; labor: number; transport: number }[]>;
-  getSpendingByCategory(): Promise<{ category: string; amount: number }[]>;
+  getTotalBudgetVsSpent(): Promise<ProjectBudgetComparison[]>;
+  getMonthlySpendingTrends(): Promise<MonthlySpending[]>;
+  getSpendingByCategory(): Promise<SpendingCategory[]>;
   getExpenseApprovalRates(): Promise<{ status: string; count: number }[]>;
   getSpendingByEmployee(): Promise<{ employee: string; amount: number }[]>;
 }
@@ -69,7 +73,7 @@ export interface IStorage {
 // In-memory implementation
 export class MemStorage implements IStorage {
   private sessionTokens: Map<string, SessionToken>;
-  private users: Map<number, User>;
+  private users: Map<number, InternalUser>;
   private clients: Map<number, Client>;
   private projects: Map<number, Project>;
   private expenses: Map<number, Expense>;
@@ -82,6 +86,10 @@ export class MemStorage implements IStorage {
   public sessionStore: session.Store;
   private generateId(): number {
     return Math.floor(Math.random() * 1000000);
+  }
+  public toSafeUser(user: InternalUser): User {
+    const { password, ...User } = user;
+    return User;
   }
 
   constructor() {
@@ -106,7 +114,9 @@ export class MemStorage implements IStorage {
     // Seed the database with initial data
     this.seedData();
   }
-  
+
+ 
+
   private async seedData() {
     // Add users with different roles
     const admin = await this.createUser({
@@ -329,20 +339,22 @@ export class MemStorage implements IStorage {
 
   // User operations
   async getUser(id: number): Promise<User | undefined> {
-    return this.users.get(id);
+    const user = this.users.get(id);
+    return user ? this.toSafeUser(user) : undefined;
   }
 
   async getUserByUsername(username: string): Promise<User | undefined> {
-    return Array.from(this.users.values()).find(
+    const user = Array.from(this.users.values()).find(
       (user) => user.username === username,
     );
+    return user ? this.toSafeUser(user) : undefined;
   }
 
   async createUser(insertUser: InsertUser): Promise<User> {
     const id = this.currentUserId++;
-    const user: User = { ...insertUser, id, role: insertUser.role as UserRoleType};
+    const user: InternalUser = { ...insertUser, id, role: insertUser.role as UserRoleType};
     this.users.set(id, user);
-    return user;
+    return this.toSafeUser(user);
   }
 
   async verifyUser(username: string, password: string): Promise<User | undefined> {
@@ -434,6 +446,40 @@ export class MemStorage implements IStorage {
     return this.expenses.get(id);
   }
 
+  async getDetailedExpense(id: number): Promise<ExpenseDetails | undefined> {
+    const expense = this.expenses.get(id);
+    if (!expense) {
+      return undefined;
+    }
+
+    const submitter = Array.from(this.users.values()).find(user => user.id === expense.submittedById);
+    const reviewer = expense.reviewedById ? Array.from(this.users.values()).find(user => user.id === expense.reviewedById) : undefined;
+    const project = Array.from(this.projects.values()).find(project => project.id === expense.projectId);
+
+    const safeSubmitter: User | undefined = submitter ? {
+      id: submitter.id,
+      name: submitter.name,
+      username: submitter.username,
+      role: submitter.role,
+    } : undefined;
+
+    const safeReviewer: User | undefined = reviewer ? {
+      id: reviewer.id,
+      name: reviewer.name,
+      username: reviewer.username,
+      role: reviewer.role,
+    } : undefined;
+
+    const expenseDetails: ExpenseDetails = {
+      expense: expense,
+      submitter: safeSubmitter,
+      reviewer: safeReviewer,
+      project: project || undefined,
+    };
+
+    return expenseDetails;
+  }
+
   async getExpenses(): Promise<Expense[]> {
     return Array.from(this.expenses.values());
   }
@@ -509,7 +555,7 @@ export class MemStorage implements IStorage {
   }
 
   // Analytics operations
-  async getTotalBudgetVsSpent(): Promise<{ project: string; budget: number; spent: number }[]> {
+  async getTotalBudgetVsSpent(): Promise<ProjectBudgetComparison[]> {
     const result: { project: string; budget: number; spent: number }[] = [];
     
     for (const project of this.projects.values()) {
@@ -528,7 +574,7 @@ export class MemStorage implements IStorage {
     return result;
   }
 
-  async getMonthlySpendingTrends(): Promise<{ month: string; equipment: number; labor: number; transport: number }[]> {
+  async getMonthlySpendingTrends(): Promise<MonthlySpending[]> {
     // Mock data for demonstration - in a real app this would aggregate actual expenses
     return [
       { month: 'Jan', equipment: 45000, labor: 30000, transport: 12000 },
@@ -540,7 +586,7 @@ export class MemStorage implements IStorage {
     ];
   }
 
-  async getSpendingByCategory(): Promise<{ category: string; amount: number }[]> {
+  async getSpendingByCategory(): Promise<SpendingCategory[]> {
     const approvedExpenses = Array.from(this.expenses.values())
       .filter(expense => expense.status === ExpenseStatus.APPROVED);
     
@@ -554,7 +600,7 @@ export class MemStorage implements IStorage {
     return Array.from(categoryMap.entries()).map(([category, amount]) => ({
       category,
       amount
-    }));
+    })) as SpendingCategory[];
   }
 
   async getExpenseApprovalRates(): Promise<{ status: string; count: number }[]> {
@@ -604,7 +650,11 @@ export class MemStorage implements IStorage {
 // Database implementation
 export class DatabaseStorage implements IStorage {
   public sessionStore: session.Store;
-  
+  public toSafeUser(user: InternalUser): User {
+    const { password, ...User } = user;
+    return User;
+  }
+
   constructor() {
     this.sessionStore = null as any;
   }
@@ -748,6 +798,44 @@ export class DatabaseStorage implements IStorage {
     return expense;
   }
 
+  async getDetailedExpense(id: number): Promise<ExpenseDetails | undefined> {
+    const { db } = await import('./db');
+
+    try {
+      const [expenseWithDetails] = await db.select({
+        expense: expenses,
+        submitter: {
+          id: users.id,
+          name: users.name,
+          username: users.username,
+          role: users.role,
+        },
+        reviewer: {
+          id: users.id,
+          name: users.name,
+          username: users.username,
+          role: users.role,
+        }, 
+        project: projects, 
+      })
+      .from(expenses)
+      .leftJoin(users, eq(expenses.submittedById, users.id))
+      .leftJoin(users, eq(expenses.reviewedById, users.id))
+      .leftJoin(projects, eq(expenses.projectId, projects.id))
+      .where(eq(expenses.id, Number(id)))
+      .limit(1);
+
+      if (!expenseWithDetails) {
+        return undefined;
+      }
+
+      return expenseWithDetails as ExpenseDetails;
+    } catch (error) {
+      console.error('Error fetching detailed expense from database:', error);
+      return undefined; // Or throw, depending on your error handling
+    }
+  }
+  
   async getExpenses(): Promise<Expense[]> {
     const { db } = await import('./db');
     return db.select().from(expenses);
@@ -817,7 +905,7 @@ export class DatabaseStorage implements IStorage {
   }
 
   // Analytics operations
-  async getTotalBudgetVsSpent(): Promise<{ project: string; budget: number; spent: number }[]> {
+  async getTotalBudgetVsSpent(): Promise<ProjectBudgetComparison[]> {
     const { db } = await import('./db');
     const allProjects = await db.select().from(projects);
     const result: { project: string; budget: number; spent: number }[] = [];
@@ -840,20 +928,44 @@ export class DatabaseStorage implements IStorage {
     return result;
   }
 
-  async getMonthlySpendingTrends(): Promise<{ month: string; equipment: number; labor: number; transport: number }[]> {
-    // This would be implemented with aggregation queries against the database
-    // For now, return mock data as in the in-memory version
-    return [
-      { month: 'Jan', equipment: 45000, labor: 30000, transport: 12000 },
-      { month: 'Feb', equipment: 52000, labor: 35000, transport: 15000 },
-      { month: 'Mar', equipment: 48000, labor: 28000, transport: 10000 },
-      { month: 'Apr', equipment: 58000, labor: 32000, transport: 14000 },
-      { month: 'May', equipment: 63000, labor: 38000, transport: 16000 },
-      { month: 'Jun', equipment: 70000, labor: 42000, transport: 18000 }
-    ];
+  async getMonthlySpendingTrends(): Promise<MonthlySpending[]> {
+    const { db } = await import('./db');
+    const { sql } = await import('drizzle-orm');
+    const rows = await db
+      .select({
+        month: sql<string>`to_char(${expenses.createdAt}, 'Mon')`.as('month'),
+        category: expenses.category,
+        total: sql<number>`SUM(${expenses.amount})`.as('total'),
+      })
+      .from(expenses)
+      .groupBy(
+        sql`to_char(${expenses.createdAt}, 'Mon')`,
+        expenses.category
+      )
+      .orderBy(sql`MIN(${expenses.createdAt})`);
+
+    const trendsMap = new Map<string, MonthlySpending>();
+
+    for (const row of rows) {
+      const month = row.month;
+      const category = row.category as 'equipment' | 'labor' | 'transport';
+
+      if (!trendsMap.has(month)) {
+        trendsMap.set(month, {
+          month,
+          equipment: 0,
+          labor: 0,
+          transport: 0,
+        });
+      }
+
+      trendsMap.get(month)![category] = Number(row.total);
+    }
+
+    return Array.from(trendsMap.values());
   }
 
-  async getSpendingByCategory(): Promise<{ category: string; amount: number }[]> {
+  async getSpendingByCategory(): Promise<SpendingCategory[]> {
     const { db } = await import('./db');
     const { sql } = await import('drizzle-orm');
     

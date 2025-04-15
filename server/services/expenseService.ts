@@ -1,11 +1,15 @@
 // server/services/expenseService.ts
 
 import { storage } from "../storage";
-import { Expense, InsertExpense, ExpenseStatusType } from "@shared/schema";
+import { Expense, ExpenseDetails, InsertExpense, ExpenseStatusType } from "@shared/schema";
 
 export const expenseService = {
   async getExpense(id: number): Promise<Expense | undefined> {
     return storage.getExpense(id);
+  },
+
+  async getDetailedExpense(id: number): Promise<ExpenseDetails | undefined> {
+    return storage.getDetailedExpense(id);
   },
 
   async getExpenses(): Promise<Expense[]> {

@@ -158,7 +158,7 @@ export default function Settings() {
                       <div>
                         <h3 className="text-lg font-medium">{user?.name}</h3>
                         <p className="text-gray-500">
-                          {user?.role.charAt(0).toUpperCase() + user?.role.slice(1)}
+                          {user?.role?.charAt(0).toUpperCase() + user?.role.slice(1)}
                         </p>
                         <Button variant="outline" size="sm" className="mt-2">
                           Change Photo

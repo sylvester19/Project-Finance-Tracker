@@ -23,10 +23,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { apiRequest, queryClient } from "@/lib/queryClient";
+import { queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useLocation } from "wouter";
 import { Camera, Upload } from "lucide-react";
+import { useAuth } from "@/hooks/useAuth";
 
 interface ExpenseFormProps {
   projectId?: number;
@@ -40,12 +41,13 @@ export function ExpenseForm({ projectId, expenseId, defaultValues }: ExpenseForm
   const isEditMode = !!expenseId;
   const [previewImage, setPreviewImage] = useState<string | null>(null);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
-
+  const { authenticatedFetch } = useAuth();
+      
   // Fetch projects for the dropdown if projectId is not provided
   const { data: projects = [], isLoading: isProjectsLoading } = useQuery({
     queryKey: ['/api/projects'],
     queryFn: async () => {
-      const res = await apiRequest("GET", "/api/projects");
+     const res = await authenticatedFetch("GET", "/api/projects");
       return res.json();
     },
     staleTime: 60000,
@@ -72,7 +74,13 @@ export function ExpenseForm({ projectId, expenseId, defaultValues }: ExpenseForm
         receiptUrl: previewImage ? "https://example.com/receipt.jpg" : undefined,
       };
       
-      const res = await apiRequest("POST", "/api/expenses", finalData);
+      const { authenticatedFetch } = useAuth();
+      const res = await authenticatedFetch("POST", "/api/expenses", {
+        body: JSON.stringify(finalData),
+        headers: {
+          "Content-Type": "application/json",
+        },
+      });
       return res.json();
     },
     onSuccess: () => {
@@ -103,7 +111,13 @@ export function ExpenseForm({ projectId, expenseId, defaultValues }: ExpenseForm
         receiptUrl: previewImage ? "https://example.com/receipt.jpg" : data.receiptUrl,
       };
       
-      const res = await apiRequest("PATCH", `/api/expenses/${expenseId}`, finalData);
+      const { authenticatedFetch } = useAuth();
+      const res = await authenticatedFetch("PATCH", `/api/expenses/${expenseId}`, {
+        body: JSON.stringify(finalData),
+        headers: {
+          "Content-Type": "application/json",
+        },
+      });
       return res.json();
     },
     onSuccess: () => {

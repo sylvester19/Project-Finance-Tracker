@@ -8,8 +8,7 @@ export const authController = {
     try {
       const user = await authService.register(req.body);
       req.session.userId = user.id;
-      const { password, ...userWithoutPassword } = user;
-      res.status(201).json(userWithoutPassword);
+      res.status(201).json(user);
     } catch (err: any) {
       res.status(400).json({ message: err.message });
     }

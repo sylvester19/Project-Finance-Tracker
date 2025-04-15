@@ -28,8 +28,9 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { formatCurrency, formatDate, getStatusColor, formatStatus, calculatePercentage } from "@/lib/utils";
+import { queryClient } from "@/lib/queryClient";
 import { useAuth } from "@/hooks/useAuth";
-import { apiRequest, queryClient } from "@/lib/queryClient";
+import { Project, Expense, ActivityLog, Client } from "@shared/schema";
 import { useToast } from "@/hooks/use-toast";
 import { 
   Edit, Plus, Calendar, DollarSign, Users, 
@@ -51,30 +52,36 @@ export default function ProjectDetails() {
   const { user } = useAuth();
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState("overview");
+  const { authenticatedFetch } = useAuth();
+      
 
   // Fetch project details
   const { data: project, isLoading: isProjectLoading } = useQuery({
     queryKey: [`/api/projects/${projectId}`],
     queryFn: async () => {
-      const res = await apiRequest("GET", `/api/projects/${projectId}`);
+      const res = await authenticatedFetch("GET", `/api/projects/${projectId}`);
       return res.json();
     },
     staleTime: 60000
   });
 
   // Fetch project expenses
-  const { data: expenses = [], isLoading: isExpensesLoading } = useQuery({
+  const { data: expenses = [], isLoading: isExpensesLoading } = useQuery<Expense[]>({
     queryKey: [`/api/projects/${projectId}/expenses`],
     queryFn: async () => {
-      const res = await apiRequest("GET", `/api/projects/${projectId}/expenses`);
+     const res = await authenticatedFetch("GET", `/api/projects/${projectId}/expenses`);
       return res.json();
     },
     staleTime: 60000
   });
 
   // Fetch client data
-  const { data: client, isLoading: isClientLoading } = useQuery({
+  const { data: client, isLoading: isClientLoading } = useQuery<Client>({
     queryKey: [`/api/clients/${project?.clientId}`],
+    queryFn: async () => {
+      const res = await authenticatedFetch("GET", `/api/clients/${project?.clientId}`);
+      return res.json();
+    },
     enabled: !!project?.clientId,
     staleTime: 300000
   });
@@ -83,22 +90,31 @@ export default function ProjectDetails() {
   const { data: activityLogs = [], isLoading: isLogsLoading } = useQuery({
     queryKey: [`/api/projects/${projectId}/activity-logs`],
     queryFn: async () => {
-      const res = await apiRequest("GET", `/api/projects/${projectId}/activity-logs`);
+      const res = await authenticatedFetch("GET", `/api/projects/${projectId}/activity-logs`);
       return res.json();
     },
     staleTime: 60000
   });
 
   // Get budget vs spent data for this project
-  const { data: budgetVsSpent = [] } = useQuery({
+  const { data: budgetVsSpent = [] } = useQuery<{ project: string; budget: number; spent: number }[]>({
     queryKey: ['/api/analytics/budget-vs-spent'],
+    queryFn: async () => {
+      const res = await authenticatedFetch("GET", `/api/analytics/budget-vs-spent`);
+      return res.json();
+    },
     staleTime: 60000
   });
 
   // Update project status mutation
   const updateStatusMutation = useMutation({
     mutationFn: async (status: string) => {
-      const res = await apiRequest('PATCH', `/api/projects/${projectId}/status`, { status });
+      const res = await authenticatedFetch('PATCH', `/api/projects/${projectId}/status`, {
+        body: JSON.stringify({ status }),
+        headers: {
+          "Content-Type": "application/json",
+        },
+      });
       return res.json();
     },
     onSuccess: () => {
@@ -141,9 +157,9 @@ export default function ProjectDetails() {
   const canChangeStatus = user && (user.role === "admin" || user.role === "manager");
 
   // Group expenses by status
-  const pendingExpenses = expenses.filter(e => e.status === "pending");
-  const approvedExpenses = expenses.filter(e => e.status === "approved");
-  const rejectedExpenses = expenses.filter(e => e.status === "rejected");
+  const pendingExpenses = expenses.filter((e: Expense) => e.status === "pending");
+  const approvedExpenses = expenses.filter((e: Expense) => e.status === "approved");
+  const rejectedExpenses = expenses.filter((e: Expense) => e.status === "rejected");
 
   // Loading state
   if (isProjectLoading) {
@@ -317,20 +333,20 @@ export default function ProjectDetails() {
                       <div className="text-sm font-medium text-gray-500">Client Name</div>
                       <div className="mt-1 flex items-center">
                         <Users className="h-4 w-4 text-gray-400 mr-1" />
-                        <span>{client.name}</span>
+                        <span>{client.name}</span> {/* Corrected line */}
                       </div>
                     </div>
                     <div>
                       <div className="text-sm font-medium text-gray-500">Contact Person</div>
                       <div className="mt-1 flex items-center">
-                        <span>{client.contactPerson}</span>
+                        <span>{client.contactPerson}</span> {/* Corrected line */}
                       </div>
                     </div>
-                    {client.contactEmail && (
+                    {(client.contactEmail) && (
                       <div>
                         <div className="text-sm font-medium text-gray-500">Email</div>
                         <div className="mt-1">
-                          <a 
+                          <a
                             href={`mailto:${client.contactEmail}`}
                             className="text-primary-600 hover:text-primary-500"
                           >
@@ -339,11 +355,11 @@ export default function ProjectDetails() {
                         </div>
                       </div>
                     )}
-                    {client.contactPhone && (
+                    {(client.contactPhone) && (
                       <div>
                         <div className="text-sm font-medium text-gray-500">Phone</div>
                         <div className="mt-1">
-                          <a 
+                          <a
                             href={`tel:${client.contactPhone}`}
                             className="text-primary-600 hover:text-primary-500"
                           >
@@ -382,21 +398,21 @@ export default function ProjectDetails() {
                       <div className="text-yellow-600 font-medium">Pending</div>
                       <div className="text-2xl font-bold mt-1">{pendingExpenses.length}</div>
                       <div className="text-sm text-gray-500 mt-1">
-                        {formatCurrency(pendingExpenses.reduce((sum, e) => sum + e.amount, 0))}
+                        {formatCurrency(pendingExpenses.reduce((sum: number, e: Expense) => sum + e.amount, 0))}
                       </div>
                     </div>
                     <div className="bg-green-50 p-4 rounded-lg">
                       <div className="text-green-600 font-medium">Approved</div>
                       <div className="text-2xl font-bold mt-1">{approvedExpenses.length}</div>
                       <div className="text-sm text-gray-500 mt-1">
-                        {formatCurrency(approvedExpenses.reduce((sum, e) => sum + e.amount, 0))}
+                       {formatCurrency(approvedExpenses.reduce((sum: number, e: Expense) => sum + e.amount, 0))}
                       </div>
                     </div>
                     <div className="bg-red-50 p-4 rounded-lg">
                       <div className="text-red-600 font-medium">Rejected</div>
                       <div className="text-2xl font-bold mt-1">{rejectedExpenses.length}</div>
                       <div className="text-sm text-gray-500 mt-1">
-                        {formatCurrency(rejectedExpenses.reduce((sum, e) => sum + e.amount, 0))}
+                        {formatCurrency(rejectedExpenses.reduce((sum: number, e: Expense) => sum + e.amount, 0))}
                       </div>
                     </div>
                   </div>
@@ -494,7 +510,7 @@ export default function ProjectDetails() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {expenses.map((expense) => (
+                      {expenses.map((expense: Expense) => (
                         <TableRow key={expense.id}>
                           <TableCell>{expense.description}</TableCell>
                           <TableCell className="capitalize">{expense.category}</TableCell>
@@ -549,7 +565,7 @@ export default function ProjectDetails() {
                 <div className="relative">
                   <div className="absolute top-0 bottom-0 left-5 w-px bg-gray-200"></div>
                   <ul className="space-y-6">
-                    {activityLogs.map((log) => (
+                    {activityLogs.map((log: ActivityLog) => (
                       <li key={log.id} className="relative pl-10">
                         <div className="absolute left-0 top-1 w-10 h-10 flex items-center justify-center">
                           <div className={`h-3 w-3 rounded-full ring-4 ring-white ${

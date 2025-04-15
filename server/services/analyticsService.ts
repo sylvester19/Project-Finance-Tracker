@@ -1,5 +1,6 @@
 // server/services/analyticsService.ts
 
+import { SpendingCategory } from "@shared/schema";
 import { storage } from "../storage";
 
 export const analyticsService = {
@@ -11,7 +12,7 @@ export const analyticsService = {
     return storage.getMonthlySpendingTrends();
   },
 
-  async getSpendingByCategory(): Promise<{ category: string; amount: number }[]> {
+  async getSpendingByCategory(): Promise<SpendingCategory[]> {
     return storage.getSpendingByCategory();
   },
 
