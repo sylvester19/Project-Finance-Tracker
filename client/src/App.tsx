@@ -33,6 +33,7 @@ function ProtectedRoute({ component: Component, ...rest }: any) {
   return <Component {...rest} />;
 }
 
+
 function Router() {
   const { isAuthenticated } = useAuth();
 
@@ -46,16 +47,16 @@ function Router() {
         {isAuthenticated ? (
           <AppShell>
             <Switch>
-              <Route path="/" component={Dashboard} />
-              <Route path="/projects" component={Projects} />
-              <Route path="/projects/:id" component={ProjectDetails} />
-              <Route path="/expenses" component={Expenses} />
-              <Route path="/expenses/:id" component={ExpenseDetail} />
-              <Route path="/clients" component={Clients} />
-              <Route path="/employees" component={Employees} />
-              <Route path="/analytics" component={Analytics} />
-              <Route path="/settings" component={Settings} />
-              <Route path="/user-management" component={UserManagement} />
+              <Route path="/" component={ () => <ProtectedRoute component={Dashboard} />} />
+              <Route path="/projects" component={ () => <ProtectedRoute component={Projects} />} />
+              <Route path="/projects/:id" component={ () => <ProtectedRoute component={ProjectDetails} />} />
+              <Route path="/expenses" component={ () => <ProtectedRoute component={Expenses} />} />
+              <Route path="/expenses/:id" component={ () => <ProtectedRoute component={ExpenseDetail} />} />
+              <Route path="/clients" component={ () => <ProtectedRoute component={Clients} />} />
+              <Route path="/employees" component={ () => <ProtectedRoute component={Employees} />} />
+              <Route path="/analytics" component={ () => <ProtectedRoute component={Analytics} />} />
+              <Route path="/settings" component={ () => <ProtectedRoute component={Settings} />} />
+              <Route path="/user-management" component={ () => <ProtectedRoute component={UserManagement} />} />
               <Route component={NotFound} />
             </Switch>
           </AppShell>

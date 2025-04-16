@@ -49,6 +49,10 @@ export default function Expenses() {
   // Fetch expenses
   const { data: expenses = [], isLoading } = useQuery<Expense[]>({
     queryKey: ['/api/expenses'],
+    queryFn: async () => {
+      const res = await authenticatedFetch("GET", "/api/expenses");
+      return res.json();
+    },
     staleTime: 60000
   });
 

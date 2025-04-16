@@ -30,6 +30,8 @@ import {
   Legend, 
   ResponsiveContainer 
 } from "recharts";
+import { useAuth } from "@/hooks/useAuth";
+import { EmployeeSpending, ExpenseApprovalRate, MonthlySpending, ProjectBudgetComparison, SpendingCategory } from "@shared/schema";
 
 // Custom tooltip for charts
 const CustomTooltip = ({ active, payload, label }: any) => {
@@ -52,35 +54,72 @@ const COLORS = ['#10B981', '#0EA5E9', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899'
 
 export default function Analytics() {
   const [timeframe, setTimeframe] = useState("90");
+  const { authenticatedFetch }= useAuth() 
 
   // Fetch budget vs spent data
-  const { data: budgetVsSpent = [], isLoading: isBudgetLoading } = useQuery({
-    queryKey: ['/api/analytics/budget-vs-spent'],
-    staleTime: 60000
+  const { data: budgetVsSpent = [], isLoading: isBudgetLoading, error: budgetError } = useQuery<ProjectBudgetComparison[]>({
+    queryKey: ['/api/analytics/total-budget-vs-spent'], 
+    queryFn: async () => {
+      const res = await authenticatedFetch("GET", '/api/analytics/total-budget-vs-spent');
+      if (!res.ok) {
+        throw new Error(`Failed to fetch data from /api/analytics/total-budget-vs-spent`);
+      }
+      return await res.json();
+    },
+    staleTime: 60000,
   });
 
   // Fetch monthly spending trends
-  const { data: monthlySpending = [], isLoading: isMonthlyLoading } = useQuery({
-    queryKey: ['/api/analytics/monthly-spending'],
-    staleTime: 60000
+  const { data: monthlySpending = [], isLoading: isMonthlyLoading, error: monthlyError } = useQuery<MonthlySpending[]>({
+    queryKey: ['/api/analytics/monthly-spending-trends'], 
+    queryFn: async () => {
+      const res = await authenticatedFetch("GET", '/api/analytics/monthly-spending-trends');
+      if (!res.ok) {
+        throw new Error(`Failed to fetch data from /api/analytics/monthly-spending-trends`);
+      }
+      return await res.json();
+    },
+    staleTime: 60000,
   });
 
   // Fetch spending by category
-  const { data: spendingByCategory = [], isLoading: isCategoryLoading } = useQuery({
-    queryKey: ['/api/analytics/spending-by-category'],
-    staleTime: 60000
+  const { data: spendingByCategory = [], isLoading: isCategoryLoading, error: categoryError } = useQuery<SpendingCategory[]>({
+    queryKey: ['/api/analytics/spending-by-category'], 
+    queryFn: async () => {
+      const res = await authenticatedFetch("GET", '/api/analytics/spending-by-category');
+      if (!res.ok) {
+        throw new Error(`Failed to fetch data from /api/analytics/spending-by-category`);
+      }
+      return await res.json();
+    },
+    staleTime: 60000,
   });
 
+
   // Fetch expense approval rates
-  const { data: approvalRates = [], isLoading: isApprovalLoading } = useQuery({
+  const { data: approvalRates = [], isLoading: isApprovalLoading, error: approvalError } = useQuery<ExpenseApprovalRate[]>({
     queryKey: ['/api/analytics/expense-approval-rates'],
-    staleTime: 60000
+    queryFn: async () => {
+      const res = await authenticatedFetch("GET", '/api/analytics/expense-approval-rates');
+      if (!res.ok) {
+        throw new Error(`Failed to fetch data from /api/analytics/expense-approval-rates`);
+      }
+      return await res.json();
+    },
+    staleTime: 60000,
   });
 
   // Fetch spending by employee
-  const { data: employeeSpending = [], isLoading: isEmployeeLoading } = useQuery({
-    queryKey: ['/api/analytics/spending-by-employee'],
-    staleTime: 60000
+  const { data: employeeSpending = [], isLoading: isEmployeeLoading, error: employeeError } = useQuery<EmployeeSpending[]>({
+    queryKey: ['/api/analytics/spending-by-employee'], 
+    queryFn: async () => {
+      const res = await authenticatedFetch("GET", '/api/analytics/spending-by-employee');
+      if (!res.ok) {
+        throw new Error(`Failed to fetch data from /api/analytics/spending-by-employee`);
+      }
+      return await res.json();
+    },
+    staleTime: 60000,
   });
 
   // Calculate total amounts

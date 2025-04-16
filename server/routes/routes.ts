@@ -10,6 +10,7 @@ import { activityLogController } from '../controllers/activityLogController';
 import { analyticsController } from '../controllers/analyticsController';  // Import analytics controller
 import { authMiddleware } from '../middleware/authMiddleware';
 import { UserRole } from '../../shared/schema';
+import { notificationController } from 'server/controllers/notificationController';
 
 const router = express.Router();
 
@@ -21,8 +22,8 @@ router.post('/logout', authController.logout);
 router.get('/session', authController.session);
 
 // User routes
-router.get('/users/:id', authMiddleware(), userController.getUser); // Any authenticated user can get their own user info
-router.get('/users/username/:username', authMiddleware(), userController.getUserByUsername); //Any authenticated user can get user info by username
+router.get('/users/:id', authMiddleware(), userController.getUser); // Any authenticated user can get other user info
+router.delete('/users/:id', authMiddleware(), userController.deleteUser);
 router.post('/users', authMiddleware([UserRole.ADMIN]), userController.createUser); // Only admins can create users
 
 // Client routes
@@ -37,7 +38,7 @@ router.get('/projects', authMiddleware(), projectController.getProjects); // Any
 router.get('/projects/user/:userId', authMiddleware(), projectController.getProjectsByUser); // Any authenticated user can get projects by user ID
 router.get('/projects/client/:clientId', authMiddleware(), projectController.getProjectsByClient); // Any authenticated user can get projects by client ID
 router.post('/projects', authMiddleware([UserRole.ADMIN, UserRole.MANAGER, UserRole.SALESPERSON]), projectController.createProject); // Admins, managers, and salespeople can create projects
-router.put('/projects/:id/status', authMiddleware([UserRole.ADMIN, UserRole.MANAGER]), projectController.updateProjectStatus); // Only admins and managers can update project status
+router.patch('/projects/:id/status', authMiddleware([UserRole.ADMIN, UserRole.MANAGER]), projectController.updateProjectStatus); // Only admins and managers can update project status
 
 // Expense routes
 router.get('/expenses/:id', authMiddleware(), expenseController.getExpense); // Any authenticated user can get an expense by ID
@@ -47,7 +48,7 @@ router.get('/expenses/project/:projectId', authMiddleware(), expenseController.g
 router.get('/expenses/user/:userId', authMiddleware(), expenseController.getExpensesByUser); // Any authenticated user can get expenses submitted by a specific user
 router.get('/expenses/status/:status', authMiddleware([UserRole.ADMIN, UserRole.MANAGER]), expenseController.getExpensesByStatus); // Only admins and managers can get expenses by status
 router.post('/expenses', authMiddleware(), expenseController.createExpense); // Any authenticated user can create an expense
-router.put('/expenses/:id/status', authMiddleware([UserRole.ADMIN, UserRole.MANAGER]), expenseController.updateExpenseStatus); // Only admins and managers can update expense status
+router.patch('/expenses/:id/status', authMiddleware([UserRole.ADMIN, UserRole.MANAGER]), expenseController.updateExpenseStatus); // Only admins and managers can update expense status
 
 // Activity Log routes
 router.get('/activity-logs/:id', authMiddleware(), activityLogController.getActivityLog); // Any authenticated user can get an activity log by ID
@@ -55,6 +56,9 @@ router.get('/activity-logs', authMiddleware([UserRole.ADMIN, UserRole.MANAGER]),
 router.get('/activity-logs/project/:projectId', authMiddleware(), activityLogController.getActivityLogsByProject); // Any authenticated user can get activity logs for a specific project
 router.get('/activity-logs/user/:userId', authMiddleware(), activityLogController.getActivityLogsByUser); // Any authenticated user can get activity logs for a specific user
 router.post('/activity-logs', authMiddleware([UserRole.ADMIN, UserRole.MANAGER]), activityLogController.createActivityLog); // Only admins and managers can create activity logs
+
+// Notification routes
+router.get('/notifications', authMiddleware(), notificationController.getUnreadNotifications);
 
 // Analytics routes
 router.get('/analytics/total-budget-vs-spent', authMiddleware([UserRole.ADMIN, UserRole.MANAGER]), analyticsController.getTotalBudgetVsSpent); // Only admins and managers can access analytics

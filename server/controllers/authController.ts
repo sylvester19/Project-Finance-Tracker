@@ -50,7 +50,11 @@ export const authController = {
 
   async logout(req: Request, res: Response) {
     await authService.logout(req.cookies.refreshToken);
-    res.clearCookie("refreshToken");
+    res.clearCookie("refreshToken", {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === "production",
+      sameSite: "strict",
+    });
     res.status(200).json({ message: "Logged out" });
   },
 

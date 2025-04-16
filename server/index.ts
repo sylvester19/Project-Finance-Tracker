@@ -2,6 +2,14 @@ import express, { type Request, Response, NextFunction } from "express";
 import routes  from "./routes/routes";
 import { setupVite, serveStatic, log } from "./vite";
 import cookieParser from "cookie-parser";
+import fs from "fs";
+import path from "path";
+import { fileURLToPath } from "url";
+
+// ✅ Fix for __dirname in ESM
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
 
 const app = express();
 app.use(express.json());
@@ -52,7 +60,7 @@ app.use((req, res, next) => {
   });
 
   if (app.get("env") === "development") {
-    await setupVite(app, null);
+    await setupVite(app, null);    
   } else {
     serveStatic(app);
   }

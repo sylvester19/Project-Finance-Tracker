@@ -2,21 +2,23 @@ import { useState, useRef, useEffect } from 'react';
 import { Bell } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { formatDistanceToNow } from 'date-fns';
+import { useAuth } from '@/hooks/useAuth';
 
-type Notification = {
-  id: number;
-  message: string;
-  createdAt: string;
-};
 
 export default function NotificationDropdown() {
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const { authenticatedFetch, user } = useAuth(); 
 
   // Fetch notifications (we're using activity logs as notifications)
   const { data: notifications, isLoading } = useQuery({
-    queryKey: ['/api/activity-logs'],
-    enabled: isOpen, // Only fetch when dropdown is open
+    queryKey: ['/api/notifications'], // Updated query key
+    enabled: isOpen && !!user, // Only fetch when dropdown is open AND user is logged in
+    queryFn: async () => {
+      if (!user) return []; // Don't fetch if user is null
+      const res = await authenticatedFetch("GET", `/api/notifications?userId=${user.id}`); // Use authenticatedFetch and pass userId
+      return await res.json();
+    },
   });
 
   const toggleMenu = () => setIsOpen(!isOpen);

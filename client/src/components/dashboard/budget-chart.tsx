@@ -26,7 +26,7 @@ export function BudgetChart() {
   const { authenticatedFetch } = useAuth();
 
   const { data, isLoading, error } = useQuery({
-    queryKey: ['/api/analytics/budget-vs-spent'],
+    queryKey: ['/api/analytics/total-budget-vs-spent'],
     queryFn: async () => {
       const res = await authenticatedFetch("GET", '/api/analytics/total-budget-vs-spent'); // Use authenticatedFetch
       if (!res.ok) {

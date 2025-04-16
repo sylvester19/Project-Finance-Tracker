@@ -24,6 +24,8 @@ import { formatCurrency } from "@/lib/utils";
 import { useLocation } from "wouter";
 import { getInitials } from "@/lib/utils";
 import { Search, UserCircle, CircleDollarSign, ArrowUpDown } from "lucide-react";
+import { useAuth } from "@/hooks/useAuth";
+import { EmployeeSpending } from "@shared/schema";
 
 interface User {
   id: number;
@@ -37,16 +39,31 @@ export default function Employees() {
   const [searchTerm, setSearchTerm] = useState("");
   const [roleFilter, setRoleFilter] = useState("all");
   const [sortBySpending, setSortBySpending] = useState("none");
+  const { authenticatedFetch } = useAuth();
 
   // Fetch users
-  const { data: users = [], isLoading: isUsersLoading } = useQuery<User[]>({
+  const { data: users = [], isLoading: isUsersLoading, error: usersError } = useQuery<User[]>({
     queryKey: ['/api/users'],
+    queryFn: async () => {
+      const res = await authenticatedFetch("GET", '/api/users');
+      if (!res.ok) {
+        throw new Error(`Failed to fetch users: ${res.statusText}`);
+      }
+      return await res.json();
+    },
     staleTime: 300000
   });
 
   // Fetch spending by employee for analytics
-  const { data: employeeSpending = [], isLoading: isSpendingLoading } = useQuery({
+  const { data: employeeSpending = [], isLoading: isSpendingLoading, error: spendingError } = useQuery<EmployeeSpending[]>({
     queryKey: ['/api/analytics/spending-by-employee'],
+    queryFn: async () => {
+      const res = await authenticatedFetch("GET", '/api/analytics/spending-by-employee');
+      if (!res.ok) {
+        throw new Error(`Failed to fetch employee spending: ${res.statusText}`);
+      }
+      return await res.json();
+    },
     staleTime: 60000
   });
 

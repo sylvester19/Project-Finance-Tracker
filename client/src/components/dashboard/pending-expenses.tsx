@@ -7,37 +7,8 @@ import { formatCurrency } from "@/lib/utils";
 import { queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth"; 
+import { Expense, Project, User } from "@shared/schema";
 
-interface Expense {
-  id: number;
-  projectId: number;
-  amount: number;
-  description: string;
-  category: string;
-  receiptUrl?: string;
-  status: string;
-  submittedById: number;
-  reviewedById?: number;
-  feedback?: string;
-  createdAt: string;
-}
-
-interface User {
-  id: number;
-  name: string;
-  username: string;
-  role: string;
-}
-
-interface Project {
-  id: number;
-  name: string;
-  clientId: number;
-  status: string;
-  startDate: string;
-  budget: number;
-  createdById: number;
-}
 
 export function PendingExpenses() {
   const { toast } = useToast();

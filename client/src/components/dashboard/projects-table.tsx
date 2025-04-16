@@ -12,15 +12,6 @@ import { PanelTop, Search, ChevronLeft, ChevronRight } from "lucide-react";
 import { Client, Project } from "@shared/schema";
 import { useAuth } from "@/hooks/useAuth";
 
-// interface Project {
-//   id: number;
-//   name: string;
-//   clientId: number;
-//   status: string;
-//   startDate: string;
-//   budget: number;
-//   createdById: number;
-// }
 
 export function ProjectsTable() {
   const [searchTerm, setSearchTerm] = useState("");

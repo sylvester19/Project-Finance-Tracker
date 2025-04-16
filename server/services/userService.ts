@@ -8,12 +8,12 @@ export const userService = {
     return storage.getUser(id);
   },
 
-  async getUserByUsername(username: string): Promise<User | undefined> {
-    return storage.getUserByUsername(username);
-  },
-
   async createUser(user: InsertUser): Promise<User> {
     // Add any business logic or validation here before creating the user
     return storage.createUser(user);
   },
+
+  async deleteUser (userId: number): Promise<void> {
+    return storage.deleteUser(userId);
+  } 
 };

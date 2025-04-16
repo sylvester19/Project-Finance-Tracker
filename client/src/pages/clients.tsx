@@ -40,20 +40,12 @@ import { useLocation } from "wouter";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { insertClientSchema } from "@shared/schema";
+import { Client, insertClientSchema } from "@shared/schema";
 import { queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { Plus, Search, Users, Mail, Phone } from "lucide-react";
 
-interface Client {
-  id: number;
-  name: string;
-  contactPerson: string;
-  contactEmail?: string;
-  contactPhone?: string;
-  createdById: number;
-}
 
 const formSchema = insertClientSchema.extend({
   contactEmail: z.string().email("Invalid email address").optional().or(z.literal('')),
@@ -62,15 +54,22 @@ const formSchema = insertClientSchema.extend({
 
 export default function Clients() {
   const [, navigate] = useLocation();
-  const { user } = useAuth();
+  const { user, authenticatedFetch  } = useAuth();
   const { toast } = useToast();
   const [searchTerm, setSearchTerm] = useState("");
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
 
   // Fetch clients
-  const { data: clients = [], isLoading } = useQuery<Client[]>({
+  const { data: clients = [], isLoading, error: clientsError } = useQuery<Client[]>({
     queryKey: ['/api/clients'],
-    staleTime: 60000
+    queryFn: async () => {
+      const res = await authenticatedFetch("GET", '/api/clients');
+      if (!res.ok) {
+        throw new Error(`Failed to fetch clients: ${res.statusText}`);
+      }
+      return await res.json();
+    },
+    staleTime: 60000,
   });
 
   // Filter clients based on search term
@@ -95,7 +94,16 @@ export default function Clients() {
   // Create client mutation
   const createClientMutation = useMutation({
     mutationFn: async (data: z.infer<typeof formSchema>) => {
-      const res = await apiRequest("POST", "/api/clients", data);
+      const res = await authenticatedFetch("POST", "/api/clients", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(data),
+      });
+      if (!res.ok) {
+        throw new Error(`Failed to create client: ${res.statusText}`);
+      }
       return res.json();
     },
     onSuccess: () => {
@@ -246,6 +254,10 @@ export default function Clients() {
           {isLoading ? (
             <div className="flex justify-center py-12">
               <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-500"></div>
+            </div>
+          ) : clientsError ? (
+            <div className="text-center py-12 text-red-500">
+              Error fetching clients: {clientsError.message}
             </div>
           ) : filteredClients.length === 0 ? (
             <div className="text-center py-12 text-gray-500">

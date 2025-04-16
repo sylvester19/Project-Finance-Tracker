@@ -1,14 +1,14 @@
 // server/services/analyticsService.ts
 
-import { SpendingCategory } from "@shared/schema";
+import { EmployeeSpending, ExpenseApprovalRate, MonthlySpending, ProjectBudgetComparison, SpendingCategory } from "@shared/schema";
 import { storage } from "../storage";
 
 export const analyticsService = {
-  async getTotalBudgetVsSpent(): Promise<{ project: string; budget: number; spent: number }[]> {
+  async getTotalBudgetVsSpent(): Promise<ProjectBudgetComparison[]> {
     return storage.getTotalBudgetVsSpent();
   },
 
-  async getMonthlySpendingTrends(): Promise<{ month: string; equipment: number; labor: number; transport: number }[]> {
+  async getMonthlySpendingTrends(): Promise<MonthlySpending[]> {
     return storage.getMonthlySpendingTrends();
   },
 
@@ -16,11 +16,11 @@ export const analyticsService = {
     return storage.getSpendingByCategory();
   },
 
-  async getExpenseApprovalRates(): Promise<{ status: string; count: number }[]> {
+  async getExpenseApprovalRates(): Promise<ExpenseApprovalRate[]> {
     return storage.getExpenseApprovalRates();
   },
 
-  async getSpendingByEmployee(): Promise<{ employee: string; amount: number }[]> {
+  async getSpendingByEmployee(): Promise<EmployeeSpending[]> {
     return storage.getSpendingByEmployee();
   },
 };

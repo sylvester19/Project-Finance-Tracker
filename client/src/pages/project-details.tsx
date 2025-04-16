@@ -30,7 +30,7 @@ import {
 import { formatCurrency, formatDate, getStatusColor, formatStatus, calculatePercentage } from "@/lib/utils";
 import { queryClient } from "@/lib/queryClient";
 import { useAuth } from "@/hooks/useAuth";
-import { Project, Expense, ActivityLog, Client } from "@shared/schema";
+import { Project, Expense, ActivityLog, Client, ProjectBudgetComparison, ActivityLogDetails } from "@shared/schema";
 import { useToast } from "@/hooks/use-toast";
 import { 
   Edit, Plus, Calendar, DollarSign, Users, 
@@ -87,20 +87,26 @@ export default function ProjectDetails() {
   });
 
   // Fetch project activity logs
-  const { data: activityLogs = [], isLoading: isLogsLoading } = useQuery({
-    queryKey: [`/api/projects/${projectId}/activity-logs`],
+  const { data: activityLogs = [], isLoading: isLogsLoading } = useQuery<ActivityLog[]>({
+    queryKey: [`/api/activity-logs/project/${projectId}`],
     queryFn: async () => {
-      const res = await authenticatedFetch("GET", `/api/projects/${projectId}/activity-logs`);
-      return res.json();
+      const res = await authenticatedFetch("GET", `/api/activity-logs/project/${projectId}`); // Updated URL
+      if (!res.ok) {
+        throw new Error(`Failed to fetch activity logs for project ${projectId}: ${res.statusText}`);
+      }
+      return await res.json();
     },
     staleTime: 60000
   });
 
   // Get budget vs spent data for this project
-  const { data: budgetVsSpent = [] } = useQuery<{ project: string; budget: number; spent: number }[]>({
-    queryKey: ['/api/analytics/budget-vs-spent'],
+  const { data: budgetVsSpent = [] } = useQuery<ProjectBudgetComparison[]>({
+    queryKey: ['/api/analytics/total-budget-vs-spent'],
     queryFn: async () => {
-      const res = await authenticatedFetch("GET", `/api/analytics/budget-vs-spent`);
+      const res = await authenticatedFetch("GET", `/api/analytics/total-budget-vs-spent`);
+      if (!res.ok) {
+        throw new Error("Failed to fetch budget vs spent data");
+      }
       return res.json();
     },
     staleTime: 60000
@@ -186,6 +192,30 @@ export default function ProjectDetails() {
       </div>
     );
   }
+
+  // Helper function to format the details based on its type
+  const formatActivityLogDetails = (details: ActivityLogDetails | null): React.ReactNode => {
+    if (!details) {
+      return "No details available";
+    }  
+    if (typeof details === 'string') {
+      return details;
+    }  
+    if ("name" in details && "username" in details) {
+      // UserLogDetails
+      return `User ${details.name} (${details.username})`; // Use action parameter
+    }  
+    if ("amount" in details && "description" in details) {
+      // ExpenseLogDetails
+      return `Expense of ${formatCurrency(details.amount)} for ${details.description}`;
+    }  
+    if ("name" in details && "status" in details) {
+      // ProjectLogDetails
+      return `Project ${details.name} status updated to ${details.status}`;    
+    }  
+    return "Unknown details format";
+  };
+
 
   return (
     <div className="py-6 px-4 sm:px-6 lg:px-8">
@@ -580,7 +610,7 @@ export default function ProjectDetails() {
                             {/* In a real app, fetch the user name */}
                             User #{log.userId} 
                           </p>
-                          <p className="text-gray-500">{log.details}</p>
+                          <p className="text-gray-500">{formatActivityLogDetails(log.details)}</p>
                           <p className="text-xs text-gray-400 mt-1">
                             {formatDate(log.timestamp)}
                           </p>

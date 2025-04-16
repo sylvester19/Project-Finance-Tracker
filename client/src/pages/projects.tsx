@@ -25,28 +25,8 @@ import { useLocation } from "wouter";
 import { formatCurrency, formatDate, getStatusColor, formatStatus, calculatePercentage } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
 import { Plus, Search, PanelTop } from "lucide-react";
+import { Client, Project, ProjectBudgetComparison } from "@shared/schema";
 
-interface Project {
-  id: number;
-  name: string;
-  clientId: number;
-  status: string;
-  startDate: string;
-  budget: number;
-  createdById: number;
-}
-
-interface Client {
-  id: number;
-  name: string;
-  contactPerson: string;
-}
-
-interface BudgetSpent {
-  project: string;
-  budget: number;
-  spent: number;
-}
 
 export default function Projects() {
   const [, navigate] = useLocation();
@@ -68,12 +48,20 @@ export default function Projects() {
   // Fetch clients
   const { data: clients = [] } = useQuery<Client[]>({
     queryKey: ['/api/clients'],
+    queryFn: async () => {
+      const res = await authenticatedFetch("GET", "/api/clients");
+      return res.json();
+    },
     staleTime: 300000
   });
 
   // Get budget vs spent data
-  const { data: budgetVsSpent = [] } = useQuery<BudgetSpent[]>({
-    queryKey: ['/api/analytics/budget-vs-spent'],
+  const { data: budgetVsSpent = [] } = useQuery<ProjectBudgetComparison[]>({
+    queryKey: ['/api/analytics/total-budget-vs-spent'],
+    queryFn: async () => {
+      const res = await authenticatedFetch("GET", "/api/analytics/total-budget-vs-spent");
+      return res.json();
+    },
     staleTime: 60000
   });
 

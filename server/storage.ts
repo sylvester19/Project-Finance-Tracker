@@ -5,9 +5,12 @@ import {
   Expense, ExpenseDetails, InsertExpense, expenses,
   ActivityLog, InsertActivityLog, activityLogs,
   ExpenseStatus, UserRole, UserRoleType, ExpenseCategoryType,
+  activityLogTargets,
+  notificationReads,
+  ActivityAction,
 } from "@shared/schema";
 import { eq, sql } from 'drizzle-orm';
-import type { ProjectStatusType, ExpenseStatusType, InternalUser, SpendingCategory, MonthlySpending, ProjectBudgetComparison } from "@shared/schema";
+import type { ProjectStatusType, ExpenseStatusType, InternalUser, SpendingCategory, MonthlySpending, ProjectBudgetComparison, InsertActivityLogTarget, ActivityLogDetails, ExpenseApprovalRate, EmployeeSpending } from "@shared/schema";
 import session from "express-session";
 import createMemoryStore from "memorystore";
 import { comparePasswords } from "../utils/session"
@@ -61,13 +64,18 @@ export interface IStorage {
   getActivityLogsByProject(projectId: number): Promise<ActivityLog[]>;
   getActivityLogsByUser(userId: number): Promise<ActivityLog[]>;
   createActivityLog(log: InsertActivityLog): Promise<ActivityLog>;
+  assignActivityLogTargets(targets: InsertActivityLogTarget[]): Promise<void>;
+  
+  // Notification Read operations
+  markNotificationRead(userId: number, activityLogId: number): Promise<void>;
+  getUnreadNotifications(userId: number): Promise<ActivityLog[]>;
 
   // Analytics operations
   getTotalBudgetVsSpent(): Promise<ProjectBudgetComparison[]>;
   getMonthlySpendingTrends(): Promise<MonthlySpending[]>;
   getSpendingByCategory(): Promise<SpendingCategory[]>;
-  getExpenseApprovalRates(): Promise<{ status: string; count: number }[]>;
-  getSpendingByEmployee(): Promise<{ employee: string; amount: number }[]>;
+  getExpenseApprovalRates(): Promise<ExpenseApprovalRate[]>;
+  getSpendingByEmployee(): Promise<EmployeeSpending[]>;
 }
 
 // In-memory implementation
@@ -78,6 +86,7 @@ export class MemStorage implements IStorage {
   private projects: Map<number, Project>;
   private expenses: Map<number, Expense>;
   private activityLogs: Map<number, ActivityLog>;
+  private readNotifications: { userId: number; activityLogId: number }[] = [];
   private currentUserId: number;
   private currentClientId: number;
   private currentProjectId: number;
@@ -140,12 +149,20 @@ export class MemStorage implements IStorage {
       role: "salesperson"
     });
     
-    const employee = await this.createUser({
-      username: "employee",
+    const employee1 = await this.createUser({
+      username: "employee1",
       password: "password",
       name: "Field Employee",
       role: "employee"
     });
+
+    const employee2 = await this.createUser({
+      username: "employee2",
+      password: "password",
+      name: "Field Employee",
+      role: "employee"
+    });
+    
     
     // Add clients
     const client1 = await this.createClient({
@@ -201,118 +218,132 @@ export class MemStorage implements IStorage {
     });
     
     // Add expenses
-    await this.createExpense({
+    const expense1 = await this.createExpense({
       projectId: project1.id,
       amount: 45000,
       description: "Initial equipment purchase",
       category: "equipment",
       status: "approved",
-      submittedById: employee.id,
+      submittedById: employee1.id,
       reviewedById: manager.id
     });
     
-    await this.createExpense({
+    const expense2 = await this.createExpense({
       projectId: project1.id,
       amount: 32000,
       description: "Mounting hardware and installation materials",
       category: "equipment",
       status: "approved",
-      submittedById: employee.id,
+      submittedById: employee2.id,
       reviewedById: manager.id
     });
     
-    await this.createExpense({
+    const expense3 = await this.createExpense({
       projectId: project1.id,
       amount: 18500,
       description: "Installation labor - Week 1",
       category: "labor",
       status: "approved",
-      submittedById: employee.id,
+      submittedById: employee1.id,
       reviewedById: manager.id
     });
     
-    await this.createExpense({
+    const expense4 = await this.createExpense({
       projectId: project1.id,
       amount: 5600,
       description: "Transportation and equipment delivery",
       category: "transport",
       status: "pending",
-      submittedById: employee.id
+      submittedById: employee2.id
     });
     
-    await this.createExpense({
+    const expense5 = await this.createExpense({
       projectId: project2.id,
       amount: 28000,
       description: "Initial equipment purchase",
       category: "equipment",
       status: "approved",
-      submittedById: employee.id,
+      submittedById: employee2.id,
       reviewedById: manager.id
     });
     
-    await this.createExpense({
+    const expense6 = await this.createExpense({
       projectId: project3.id,
       amount: 85000,
       description: "Solar panels bulk purchase",
       category: "equipment",
       status: "approved",
-      submittedById: employee.id,
+      submittedById: employee1.id,
       reviewedById: manager.id
     });
     
-    await this.createExpense({
+    const expense7 = await this.createExpense({
       projectId: project3.id,
       amount: 42000,
       description: "Installation labor - Phase 1",
       category: "labor",
       status: "approved",
-      submittedById: employee.id,
+      submittedById: employee1.id,
       reviewedById: manager.id
     });
     
-    await this.createExpense({
+    const expense8 = await this.createExpense({
       projectId: project3.id,
       amount: 12500,
       description: "Transportation and site logistics",
       category: "transport",
       status: "approved",
-      submittedById: employee.id,
+      submittedById: employee2.id,
       reviewedById: manager.id
     });
     
-    await this.createExpense({
+    const expense9 = await this.createExpense({
       projectId: project3.id,
       amount: 7800,
       description: "Electrical wiring and connections",
       category: "equipment",
       status: "rejected",
-      submittedById: employee.id,
+      submittedById: employee1.id,
       reviewedById: manager.id,
       feedback: "Please itemize this expense further and resubmit"
     });
     
     // Add some activity logs
     await this.createActivityLog({
-      userId: salesperson.id,
+      userId: employee2.id,
       projectId: project1.id,
-      action: "created_project",
-      details: "Created project ABC HQ Solar Installation with budget $250000"
+      action: ActivityAction.EXPENSE_SUBMITTED,
+      details: expense1
+    });
+    
+    
+    await this.createActivityLog({
+      userId: employee1.id,
+      projectId: project3.id,
+      action: ActivityAction.PROJECT_UPDATED,
+      details: project3
+    });
+    
+    
+    await this.createActivityLog({
+      userId: employee2.id,
+      projectId: project1.id,
+      action: ActivityAction.EXPENSE_SUBMITTED,
+      details: expense6
     });
     
     await this.createActivityLog({
-      userId: employee.id,
+      userId: employee1.id,
       projectId: project1.id,
-      expenseId: 1,
-      action: "submitted_expense",
-      details: "Submitted expense of $45000 for Initial equipment purchase"
+      action: ActivityAction.USER_ASSIGNED,
+      details: employee1
     });
     
     await this.createActivityLog({
-      userId: manager.id,
+      userId: employee2.id,
       projectId: project1.id,
-      expenseId: 1,
-      action: "approved_expense",
-      details: "Approved expense of $45000 for Initial equipment purchase"
+      action: ActivityAction.EXPENSE_SUBMITTED,
+      details: expense3
     });
   }
 
@@ -546,12 +577,53 @@ export class MemStorage implements IStorage {
     );
   }
 
-  async createActivityLog(insertLog: InsertActivityLog): Promise<ActivityLog> {
+  async createActivityLog(insertLog: {
+    userId: number;
+    projectId: number;
+    action: ActivityAction;
+    details: ActivityLogDetails;
+  }): Promise<ActivityLog> {
     const id = this.currentActivityLogId++;
     const timestamp = new Date();
-    const log: ActivityLog = { ...insertLog, id, timestamp, projectId: insertLog.projectId ?? null, expenseId: insertLog.expenseId ?? null, details: insertLog.details ?? null };
+  
+    const log: ActivityLog = {
+      id,
+      userId: insertLog.userId,
+      projectId: insertLog.projectId,
+      action: insertLog.action,
+      details: insertLog.details,
+      timestamp
+    };
+  
     this.activityLogs.set(id, log);
     return log;
+  }
+  
+  async assignActivityLogTargets(targets: InsertActivityLogTarget[]): Promise<void> {
+    console.warn("assignActivityLogTargets not fully implemented in MemStorage");
+  }
+
+
+  // Notification Read operations
+  async markNotificationRead(userId: number, activityLogId: number): Promise<void> {
+    console.warn("markNotificationRead not fully implemented in MemStorage");
+  }
+
+  async getUnreadNotifications(userId: number): Promise<ActivityLog[]> {
+    const unread: ActivityLog[] = [];
+    this.activityLogs.forEach((log) => {
+      if (
+        // Check if the log is unread by the user
+        !this.readNotifications.some(
+          (n) => n.userId === userId && n.activityLogId === log.id
+        ) &&
+        // Check if the log is relevant to the user (either the userId matches or the details include the userId)
+        (log.userId === userId || (log.details && log.details.id === userId))
+      ) {
+        unread.push(log);
+      }
+    });
+    return unread;
   }
 
   // Analytics operations
@@ -603,7 +675,7 @@ export class MemStorage implements IStorage {
     })) as SpendingCategory[];
   }
 
-  async getExpenseApprovalRates(): Promise<{ status: string; count: number }[]> {
+  async getExpenseApprovalRates(): Promise<ExpenseApprovalRate[]> {
     const pendingCount = Array.from(this.expenses.values())
       .filter(e => e.status === ExpenseStatus.PENDING).length;
     
@@ -620,29 +692,31 @@ export class MemStorage implements IStorage {
     ];
   }
 
-  async getSpendingByEmployee(): Promise<{ employee: string; amount: number }[]> {
+  async getSpendingByEmployee(): Promise<EmployeeSpending[]> {
     const result = new Map<number, number>();
+  
     const approvedExpenses = Array.from(this.expenses.values())
       .filter(expense => expense.status === ExpenseStatus.APPROVED);
-    
+  
     // Calculate total approved expenses per employee
     for (const expense of approvedExpenses) {
       const currentTotal = result.get(expense.submittedById) || 0;
       result.set(expense.submittedById, currentTotal + expense.amount);
     }
-    
-    // Get employee names
-    const finalResult: { employee: string; amount: number }[] = [];
+  
+    // Prepare final results with employee details
+    const finalResult: EmployeeSpending[] = [];
     for (const [userId, amount] of result.entries()) {
-      const user = await this.getUser(userId);
+      const user = this.users.get(userId);
       if (user) {
         finalResult.push({
-          employee: user.name,
-          amount
+          employeeId: user.id,
+          employeeName: user.name,
+          amount,
         });
       }
     }
-    
+  
     return finalResult;
   }
 }
@@ -708,6 +782,12 @@ export class DatabaseStorage implements IStorage {
     const { db } = await import('./db');
     const [user] = await db.insert(users).values({...insertUser, role: insertUser.role as UserRoleType}).returning();
     return user;
+  }
+
+  async deleteUser(userId: number): Promise<void> {
+    const { db } = await import('./db');
+    
+    await db.delete(users).where(eq(users.id, userId));
   }
 
   async verifyUser(username: string, password: string): Promise<User | undefined> {   
@@ -901,8 +981,37 @@ export class DatabaseStorage implements IStorage {
   async createActivityLog(log: InsertActivityLog): Promise<ActivityLog> {
     const { db } = await import('./db');
     const [newLog] = await db.insert(activityLogs).values(log).returning();
-    return newLog;
+
+    return newLog;  
   }
+
+  async assignActivityLogTargets(targets: InsertActivityLogTarget[]): Promise<void> {
+    const { db } = await import('./db');
+    await db.insert(activityLogTargets).values(targets);
+  }
+
+  // Notification Read operations
+  async markNotificationRead(userId: number, activityLogId: number): Promise<void> {
+    const { db } = await import('./db');
+    await db.insert(notificationReads).values({ userId, activityLogId });
+  }
+
+  async getUnreadNotifications(userId: number): Promise<ActivityLog[]> {
+    const { db } = await import('./db');
+    const { sql } = await import('drizzle-orm');
+  
+    const result = await db
+      .select()
+      .from(activityLogs)
+      .leftJoin(
+        notificationReads,
+        sql`${activityLogs.id} = ${notificationReads.activityLogId} AND ${notificationReads.userId} = ${userId}`
+      )
+      .where(sql`${notificationReads.id} IS NULL`);
+    
+    return result.map(row => row.activity_logs);
+  }
+  
 
   // Analytics operations
   async getTotalBudgetVsSpent(): Promise<ProjectBudgetComparison[]> {
@@ -981,7 +1090,7 @@ export class DatabaseStorage implements IStorage {
     return result;
   }
 
-  async getExpenseApprovalRates(): Promise<{ status: string; count: number }[]> {
+  async getExpenseApprovalRates(): Promise<ExpenseApprovalRate[]> {
     const { db } = await import('./db');
     const { sql } = await import('drizzle-orm');
     
@@ -1000,10 +1109,10 @@ export class DatabaseStorage implements IStorage {
     }));
   }
 
-  async getSpendingByEmployee(): Promise<{ employee: string; amount: number }[]> {
+  async getSpendingByEmployee(): Promise<EmployeeSpending[]> {
     const { db } = await import('./db');
     const { sql } = await import('drizzle-orm');
-    
+  
     const result = await db
       .select({
         userId: expenses.submittedById,
@@ -1012,23 +1121,24 @@ export class DatabaseStorage implements IStorage {
       .from(expenses)
       .where(eq(expenses.status, ExpenseStatus.APPROVED))
       .groupBy(expenses.submittedById);
-    
-    const finalResult: { employee: string; amount: number }[] = [];
-    
+  
+    const finalResult: EmployeeSpending[] = [];
+  
     for (const row of result) {
       const [user] = await db
         .select()
         .from(users)
         .where(eq(users.id, row.userId));
-      
+  
       if (user) {
         finalResult.push({
-          employee: user.name,
-          amount: row.amount
+          employeeId: user.id,
+          employeeName: user.name,
+          amount: row.amount,
         });
       }
     }
-    
+  
     return finalResult;
   }
 }

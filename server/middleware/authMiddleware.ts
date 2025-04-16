@@ -6,11 +6,16 @@ import dotenv from "dotenv";
 dotenv.config();
 
 interface DecodedToken {
-  userId: string;
+  id: number;
+  username: string;
+  name: string;
   role: UserRoleType;
+  exp: number; // Token expiration timestamp (in seconds since epoch)
+  iat: number; // (Optional) Issued at timestamp
 }
 
-interface AuthenticatedRequest extends Request {
+
+export interface AuthenticatedRequest extends Request {
   user?: {
     id: number;
     role: UserRoleType;
@@ -41,15 +46,15 @@ export const authMiddleware = (allowedRoles: UserRoleType[] = []) => {
     try {
       const decoded = jwt.verify(token, JWT_SECRET) as DecodedToken;
 
-      console.log(`✅ [AUTH] Token verified for userId: ${decoded.userId}, role: ${decoded.role}`);
+      console.log(`✅ [AUTH] Token verified for userId: ${decoded.id}, role: ${decoded.role}`);
       req.user = {
-        id: parseInt(decoded.userId),
+        id: decoded.id,
         role: decoded.role,
       };
 
       // Authorization check
       if (allowedRoles.length > 0 && !allowedRoles.includes(decoded.role)) {
-        console.warn(`❌ [AUTH] User ${decoded.userId} with role ${decoded.role} is not authorized to access ${req.method} ${path}`);
+        console.warn(`❌ [AUTH] User ${decoded.id} with role ${decoded.role} is not authorized to access ${req.method} ${path}`);
         return res.status(403).json({ message: "Forbidden: insufficient permissions" });
       }
 

@@ -4,7 +4,7 @@ import { Link } from "wouter";
 import { useQuery } from "@tanstack/react-query";
 import { CheckCircle, XCircle, AlertCircle, Clock } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
-import { ActivityLog, User, Project, Expense } from "@shared/schema";
+import { ActivityLog, User, Project, Expense, ActivityAction } from "@shared/schema";
 
 export function RecentActivity() {
   const { authenticatedFetch } = useAuth();
@@ -92,15 +92,15 @@ export function RecentActivity() {
   // Get icon based on action type
   const getActionIcon = (action: string) => {
     switch (action) {
-      case 'approved_expense':
+      case ActivityAction.EXPENSE_APPROVED:
         return <div className="h-8 w-8 bg-primary-500 rounded-full flex items-center justify-center ring-8 ring-white">
           <CheckCircle className="h-5 w-5 text-white" />
         </div>;
-      case 'rejected_expense':
+      case ActivityAction.EXPENSE_REJECTED:
         return <div className="h-8 w-8 bg-red-500 rounded-full flex items-center justify-center ring-8 ring-white">
           <XCircle className="h-5 w-5 text-white" />
         </div>;
-      case 'updated_project_status':
+      case ActivityAction.PROJECT_UPDATED:
         return <div className="h-8 w-8 bg-amber-500 rounded-full flex items-center justify-center ring-8 ring-white">
           <Clock className="h-5 w-5 text-white" />
         </div>;
@@ -145,25 +145,25 @@ export function RecentActivity() {
                         <Link href={`/users/${log.userId}`}>
                           <a className="font-medium text-gray-900">{getUserName(log.userId)}</a>
                         </Link>{' '}
-                        {log.action === 'approved_expense' && 'approved expense of '}
-                        {log.action === 'rejected_expense' && 'rejected expense of '}
-                        {log.action === 'submitted_expense' && 'submitted new expense of '}
-                        {log.action === 'created_project' && 'created new project '}
-                        {log.action === 'updated_project_status' && 'updated project status for '}
+                        {log.action === ActivityAction.EXPENSE_APPROVED && 'approved expense of '}
+                        {log.action === ActivityAction.EXPENSE_REJECTED && 'rejected expense of '}
+                        {log.action === ActivityAction.EXPENSE_SUBMITTED && 'submitted new expense of '}
+                        {log.action === ActivityAction.PROJECT_CREATED && 'created new project '}
+                        {log.action === ActivityAction.PROJECT_UPDATED && 'updated project status for '}
                         
-                        {log.expenseId && (
-                          <Link href={`/expenses/${log.expenseId}`}>
-                            <a className="font-medium text-gray-900">
-                              {log.details && log.action === 'rejected_expense' && (
-                                <div className="mt-2 text-sm text-gray-700 bg-gray-50 p-3 rounded-md">
-                                  <p>{log.details.includes('with feedback:') 
-                                    ? log.details.split('with feedback:')[1].trim() 
-                                    : log.details}
-                                  </p>
-                                </div>
-                              )}
-                            </a>
-                          </Link>
+                        {(log.action === ActivityAction.EXPENSE_REJECTED || log.action === ActivityAction.EXPENSE_APPROVED || log.action === ActivityAction.EXPENSE_SUBMITTED) && log.details && (
+                          <Link href={`/expenses/${(log.details as Expense).id}`}>
+                          <a className="font-medium text-gray-900">
+                            {(log.action === ActivityAction.EXPENSE_REJECTED && (
+                              <div className="mt-2 text-sm text-gray-700 bg-gray-50 p-3 rounded-md">
+                                <p>{typeof log.details === 'object' && 'reason' in log.details
+                                  ? (log.details as any).reason
+                                  : JSON.stringify(log.details)}
+                                </p>
+                              </div>
+                            ))}
+                          </a>
+                        </Link>
                         )}
                         
                         {log.projectId && (
@@ -178,20 +178,26 @@ export function RecentActivity() {
                       <p className="mt-0.5 text-sm text-gray-500">{formatRelativeTime(String(log.timestamp))}</p>
                     </div>
                     
-                    {log.details && log.action === 'rejected_expense' && (
+                    {log.action === ActivityAction.EXPENSE_REJECTED &&
+                      log.details !== null &&
+                      typeof log.details === 'object' &&
+                      'reason' in log.details &&
+                      typeof log.details.reason === 'string' && (
+                        <div className="mt-2 text-sm text-gray-700 bg-gray-50 p-3 rounded-md">
+                          <p>
+                            {log.details.reason.includes('with feedback:')
+                              ? log.details.reason.split('with feedback:')[1].trim()
+                              : log.details.reason}
+                          </p>
+                        </div>
+                    )}
+
+                    {log.details && log.action === ActivityAction.PROJECT_UPDATED && (
                       <div className="mt-2 text-sm text-gray-700 bg-gray-50 p-3 rounded-md">
-                        <p>{log.details.includes('with feedback:') 
-                          ? log.details.split('with feedback:')[1].trim() 
-                          : log.details}
-                        </p>
+                        <p>{'name' in log.details ? log.details.name : '[Unnamed Project]'}</p>
                       </div>
                     )}
-                    
-                    {log.details && log.action === 'updated_project_status' && (
-                      <div className="mt-2 text-sm text-gray-700 bg-gray-50 p-3 rounded-md">
-                        <p>{log.details}</p>
-                      </div>
-                    )}
+
                   </div>
                 </div>
               </li>
