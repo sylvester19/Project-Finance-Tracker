@@ -45,6 +45,7 @@ import { queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 import { Plus, Search, Users, Mail, Phone } from "lucide-react";
+import { ClientCreateForm } from "@/components/forms/create-client-form";
 
 
 const formSchema = insertClientSchema.extend({
@@ -137,94 +138,20 @@ export default function Clients() {
         <h1 className="text-2xl font-semibold text-gray-900">Clients</h1>
         <div className="mt-3 sm:mt-0">
           {canCreateClient && (
-            <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
-              <DialogTrigger asChild>
-                <Button className="w-full sm:w-auto">
-                  <Plus className="h-4 w-4 mr-2" />
-                  Add Client
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="sm:max-w-md">
-                <DialogHeader>
-                  <DialogTitle>Create New Client</DialogTitle>
-                  <DialogDescription>
-                    Add a new client to the system. This client can be associated with solar projects.
-                  </DialogDescription>
-                </DialogHeader>
-                <Form {...form}>
-                  <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-                    <FormField
-                      control={form.control}
-                      name="name"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Company Name</FormLabel>
-                          <FormControl>
-                            <Input placeholder="Enter company name" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={form.control}
-                      name="contactPerson"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Contact Person</FormLabel>
-                          <FormControl>
-                            <Input placeholder="Enter contact person name" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={form.control}
-                      name="contactEmail"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Email (Optional)</FormLabel>
-                          <FormControl>
-                            <Input placeholder="Enter email address" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={form.control}
-                      name="contactPhone"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Phone (Optional)</FormLabel>
-                          <FormControl>
-                            <Input placeholder="Enter phone number" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <DialogFooter className="mt-6">
-                      <Button
-                        type="button"
-                        variant="outline"
-                        onClick={() => setIsCreateDialogOpen(false)}
-                        disabled={createClientMutation.isPending}
-                      >
-                        Cancel
-                      </Button>
-                      <Button 
-                        type="submit"
-                        disabled={createClientMutation.isPending}
-                      >
-                        {createClientMutation.isPending ? 'Creating...' : 'Create Client'}
-                      </Button>
-                    </DialogFooter>
-                  </form>
-                </Form>
-              </DialogContent>
-            </Dialog>
+            <>
+              <Button 
+                onClick={() => setIsCreateDialogOpen(true)}
+                className="w-full sm:w-auto"
+              >
+                <Plus className="h-4 w-4 mr-2" />
+                New Client
+              </Button>
+              
+              <ClientCreateForm 
+                open={isCreateDialogOpen}
+                onOpenChange={setIsCreateDialogOpen} 
+              />          
+            </>
           )}
         </div>
       </div>
@@ -273,7 +200,6 @@ export default function Clients() {
                     <TableHead>Company Name</TableHead>
                     <TableHead>Contact Person</TableHead>
                     <TableHead>Contact Details</TableHead>
-                    <TableHead>Projects</TableHead>
                     <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -308,16 +234,7 @@ export default function Clients() {
                             </div>
                           )}
                         </div>
-                      </TableCell>
-                      <TableCell>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => navigate(`/clients/${client.id}/projects`)}
-                        >
-                          View Projects
-                        </Button>
-                      </TableCell>
+                      </TableCell>                      
                       <TableCell className="text-right">
                         <Button
                           variant="ghost"

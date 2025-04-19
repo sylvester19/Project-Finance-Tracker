@@ -1,5 +1,5 @@
 import React from "react";
-import { LoginForm } from "@/components/auth/login-form";
+import { LoginForm } from "@/components/forms/login-form";
 import { useAuth } from "@/hooks/useAuth";
 import { useLocation } from "wouter";
 

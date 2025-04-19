@@ -135,22 +135,24 @@ export default function Analytics() {
   }));
 
   // Format approval rates for pie chart
-  const approvalRateData = approvalRates.map((item: any, index: number) => ({
-    name: item.status,
-    value: item.count,
-    color: item.status === 'Approved' 
-      ? '#10B981' 
-      : item.status === 'Rejected' 
-        ? '#EF4444' 
-        : '#F59E0B'
+  const approvalRateData = approvalRates?.map((rate) => ({
+    name: rate.status,
+    value: Number(rate.count), // convert to number
+    color:
+      rate.status === "Approved"
+        ? "#10B981"
+        : rate.status === "Rejected"
+        ? "#EF4444"
+        : "#F59E0B",
   }));
+
 
   // Format employee spending for bar chart (top 5)
   const topEmployeeSpending = [...employeeSpending]
     .sort((a: any, b: any) => b.amount - a.amount)
     .slice(0, 5)
     .map((item: any, index: number) => ({
-      name: item.employee,
+      name: item.employeeName,
       amount: item.amount,
       color: COLORS[index % COLORS.length]
     }));
@@ -240,7 +242,7 @@ export default function Analytics() {
                       Spent: item.spent,
                       fullName: item.project
                     }))}
-                    margin={{ top: 20, right: 30, left: 20, bottom: 50 }}
+                    margin={{ top: 20, right: 30, left: 20, bottom: 80 }}
                   >
                     <CartesianGrid strokeDasharray="3 3" />
                     <XAxis 
@@ -255,7 +257,14 @@ export default function Analytics() {
                       tick={{ fontSize: 12 }}
                     />
                     <Tooltip content={<CustomTooltip />} />
-                    <Legend />
+                    <Legend
+                      verticalAlign="top"
+                      align="center"
+                      wrapperStyle={{
+                        top: 280, // Adjust based on height of your chart
+                        position: 'absolute'
+                      }}
+                    />
                     <Bar dataKey="Budget" fill="#0EA5E9" barSize={30} />
                     <Bar dataKey="Spent" fill="#10B981" barSize={30} />
                   </BarChart>
@@ -389,11 +398,7 @@ export default function Analytics() {
                 <div className="h-full w-full flex items-center justify-center">
                   <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-500"></div>
                 </div>
-              ) : approvalRateData.length === 0 ? (
-                <div className="h-full w-full flex items-center justify-center text-gray-500">
-                  No approval rate data available
-                </div>
-              ) : (
+              ) : approvalRateData && approvalRateData.length > 0 ? (
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
                     <Pie
@@ -403,17 +408,20 @@ export default function Analytics() {
                       labelLine={false}
                       label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
                       outerRadius={80}
-                      fill="#8884d8"
                       dataKey="value"
                     >
                       {approvalRateData.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={entry.color} />
+                        <Cell key={`cell-${index}`} fill={entry.color || '#8884d8'} />
                       ))}
                     </Pie>
                     <Tooltip />
                     <Legend />
                   </PieChart>
                 </ResponsiveContainer>
+              ) : (
+                <div className="h-full w-full flex items-center justify-center text-gray-500">
+                  No approval rate data available
+                </div>
               )}
             </div>
           </CardContent>

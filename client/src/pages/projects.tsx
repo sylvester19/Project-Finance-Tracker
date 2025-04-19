@@ -26,6 +26,7 @@ import { formatCurrency, formatDate, getStatusColor, formatStatus, calculatePerc
 import { useAuth } from "@/hooks/useAuth";
 import { Plus, Search, PanelTop } from "lucide-react";
 import { Client, Project, ProjectBudgetComparison } from "@shared/schema";
+import { ProjectCreateForm } from "@/components/forms/create-project-form";
 
 
 export default function Projects() {
@@ -34,6 +35,7 @@ export default function Projects() {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const { authenticatedFetch } = useAuth();
+    const [openProjectForm, setOpenProjectForm] = useState(false);
 
   // Fetch projects
   const { data: projects = [], isLoading } = useQuery<Project[]>({
@@ -99,13 +101,21 @@ export default function Projects() {
         <h1 className="text-2xl font-semibold text-gray-900">Projects</h1>
         <div className="mt-3 sm:mt-0">
           {canCreateProject && (
-            <Button 
-              onClick={() => navigate("/projects/new")}
-              className="w-full sm:w-auto"
-            >
-              <Plus className="h-4 w-4 mr-2" />
-              New Project
-            </Button>
+            <>
+              <Button 
+                onClick={() => setOpenProjectForm(true)}
+                className="w-full sm:w-auto"
+              >
+                <Plus className="h-4 w-4 mr-2" />
+                New Project
+              </Button>
+
+              <ProjectCreateForm // Render the ProjectForm as a dialog
+                open={openProjectForm}
+                onOpenChange={setOpenProjectForm}
+                // ... other props if any ...
+              />              
+            </>
           )}
         </div>
       </div>

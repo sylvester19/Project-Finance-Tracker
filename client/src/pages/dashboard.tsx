@@ -6,7 +6,6 @@ import { ProjectsTable } from "@/components/dashboard/projects-table";
 import { PendingExpenses } from "@/components/dashboard/pending-expenses";
 import { RecentActivity } from "@/components/dashboard/recent-activity";
 import { Button } from "@/components/ui/button";
-import { useLocation } from "wouter";
 import { Plus } from "lucide-react";
 import {
   Select,
@@ -16,11 +15,13 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useAuth } from "@/hooks/useAuth";
+import { useDateRange } from "@/context/DateRangeContext";
+import { ProjectCreateForm } from "@/components/forms/create-project-form";
 
 export default function Dashboard() {
-  const [dateRange, setDateRange] = useState("30");
-  const [, navigate] = useLocation();
   const { user } = useAuth();
+  const { dateRange, setDateRange } = useDateRange();
+  const [openProjectForm, setOpenProjectForm] = useState(false);
 
   const handleDateRangeChange = (value: string) => {
     setDateRange(value);
@@ -33,6 +34,7 @@ export default function Dashboard() {
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between pb-6">
         <h1 className="text-2xl font-semibold text-gray-900">Dashboard</h1>
         <div className="mt-3 sm:mt-0 flex flex-col sm:flex-row items-center space-y-3 sm:space-y-0 sm:space-x-3">
+
           <Select
             value={dateRange}
             onValueChange={handleDateRangeChange}
@@ -50,14 +52,23 @@ export default function Dashboard() {
           </Select>
           
           {canCreateProject && (
-            <Button 
-              onClick={() => navigate("/projects/new")}
-              className="w-full sm:w-auto"
-            >
-              <Plus className="h-4 w-4 mr-2" />
-              New Project
-            </Button>
+            <>
+              <Button 
+                onClick={() => setOpenProjectForm(true)}
+                className="w-full sm:w-auto"
+              >
+                <Plus className="h-4 w-4 mr-2" />
+                New Project
+              </Button>
+
+              <ProjectCreateForm // Render the ProjectForm as a dialog
+                open={openProjectForm}
+                onOpenChange={setOpenProjectForm}
+                // ... other props if any ...
+              />              
+            </>
           )}
+
         </div>
       </div>
 

@@ -42,7 +42,7 @@ export default function Employees() {
   const { authenticatedFetch } = useAuth();
 
   // Fetch users
-  const { data: users = [], isLoading: isUsersLoading, error: usersError } = useQuery<User[]>({
+  const { data: users = [], isLoading: isUsersLoading } = useQuery<User[]>({
     queryKey: ['/api/users'],
     queryFn: async () => {
       const res = await authenticatedFetch("GET", '/api/users');
@@ -54,17 +54,31 @@ export default function Employees() {
     staleTime: 300000
   });
 
-  // Fetch spending by employee for analytics
-  const { data: employeeSpending = [], isLoading: isSpendingLoading, error: spendingError } = useQuery<EmployeeSpending[]>({
-    queryKey: ['/api/analytics/spending-by-employee'],
+  // Fetch expense as per employee 
+  const { data: userExpensesMap = {}, isLoading: isSpendingLoading } = useQuery({
+    queryKey: ["employee-spending-by-user"],
     queryFn: async () => {
-      const res = await authenticatedFetch("GET", '/api/analytics/spending-by-employee');
-      if (!res.ok) {
-        throw new Error(`Failed to fetch employee spending: ${res.statusText}`);
-      }
-      return await res.json();
+      const result: Record<number, number> = {};
+  
+      await Promise.all(
+        users.map(async (user) => {
+          if (user.role === "admin") return;
+  
+          const res = await authenticatedFetch("GET", `/api/expenses/user/${user.id}`);
+          if (res.ok) {
+            const expenses = await res.json();
+            const total = expenses.reduce((sum: number, expense: any) => sum + expense.amount, 0);
+            result[user.id] = total;
+          } else {
+            result[user.id] = 0;
+          }
+        })
+      );
+  
+      return result;
     },
-    staleTime: 60000
+    enabled: users.length > 0, // Run only after users are fetched
+    staleTime: 60000,
   });
 
   // Filter and sort users
@@ -78,14 +92,10 @@ export default function Employees() {
       const matchesRole = roleFilter === "all" || user.role === roleFilter;
       return matchesSearch && matchesRole;
     })
-    .map(user => {
-      // Add spending data to each user
-      const spending = employeeSpending.find((s: any) => s.employee === user.name);
-      return {
-        ...user,
-        spending: spending ? spending.amount : 0
-      };
-    })
+    .map(user => ({
+      ...user,
+      spending: userExpensesMap[user.id] || 0
+    }))
     .sort((a, b) => {
       // Sort by spending if needed
       if (sortBySpending === "highest") {

@@ -76,6 +76,10 @@ export default function UserManagement() {
   // Fetch users
   const { data: users = [], isLoading } = useQuery<User[]>({
     queryKey: ['/api/users'],
+    queryFn: async () => {
+      const res = await authenticatedFetch("GET", "/api/users");
+      return res.json();
+    },
     staleTime: 60000
   });
 
@@ -132,7 +136,6 @@ export default function UserManagement() {
   // Delete user mutation
   const deleteUserMutation = useMutation({
     mutationFn: async (userId: number) => {
-      const { authenticatedFetch } = useAuth();
       const res = await authenticatedFetch("DELETE", `/api/users/${userId}`, {});
       return res.json();
     },
@@ -143,6 +146,7 @@ export default function UserManagement() {
         description: "The user has been deleted successfully",
       });
       setIsConfirmDeleteOpen(false);
+      setSearchTerm("");
       setSelectedUser(null);
     },
     onError: (error) => {
@@ -441,11 +445,7 @@ export default function UserManagement() {
                             <DropdownMenuItem>
                               <PencilIcon className="h-4 w-4 mr-2" />
                               Edit
-                            </DropdownMenuItem>
-                            <DropdownMenuItem>
-                              <XCircle className="h-4 w-4 mr-2" />
-                              Deactivate
-                            </DropdownMenuItem>
+                            </DropdownMenuItem>                            
                             <DropdownMenuSeparator />
                             <DropdownMenuItem
                               className="text-red-600"

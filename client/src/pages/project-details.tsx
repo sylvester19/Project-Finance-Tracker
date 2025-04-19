@@ -34,7 +34,9 @@ import { Project, Expense, ActivityLog, Client, ProjectBudgetComparison, Activit
 import { useToast } from "@/hooks/use-toast";
 import { 
   Edit, Plus, Calendar, DollarSign, Users, 
-  Clock, BarChart, FileText
+  Clock, BarChart, FileText,
+  Search,
+  ArrowLeft
 } from "lucide-react";
 import {
   Select,
@@ -44,6 +46,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { ProjectStatus } from "@shared/schema";
+import { Input } from "@/components/ui/input";
 
 export default function ProjectDetails() {
   const { id } = useParams<{ id: string }>();
@@ -53,7 +56,9 @@ export default function ProjectDetails() {
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState("overview");
   const { authenticatedFetch } = useAuth();
-      
+  const [searchTerm, setSearchTerm] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
+  const [categoryFilter, setCategoryFilter] = useState("all");
 
   // Fetch project details
   const { data: project, isLoading: isProjectLoading } = useQuery({
@@ -67,9 +72,9 @@ export default function ProjectDetails() {
 
   // Fetch project expenses
   const { data: expenses = [], isLoading: isExpensesLoading } = useQuery<Expense[]>({
-    queryKey: [`/api/projects/${projectId}/expenses`],
+    queryKey: [`/api/expenses/project/${projectId}`],
     queryFn: async () => {
-     const res = await authenticatedFetch("GET", `/api/projects/${projectId}/expenses`);
+     const res = await authenticatedFetch("GET", `/api/expenses/project/${projectId}`);
       return res.json();
     },
     staleTime: 60000
@@ -216,9 +221,25 @@ export default function ProjectDetails() {
     return "Unknown details format";
   };
 
+  const categories = Array.from(new Set(expenses.map((e) => e.category))); // unique categories
+
+  const filteredExpenses = expenses.filter((expense) => {
+    const matchesSearch = expense.description.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesStatus = statusFilter === "all" || expense.status === statusFilter;
+    const matchesCategory = categoryFilter === "all" || expense.category === categoryFilter;
+    return matchesSearch && matchesStatus && matchesCategory;
+  });
 
   return (
     <div className="py-6 px-4 sm:px-6 lg:px-8">
+      <Button 
+        variant="ghost" 
+        className="mb-2"
+        onClick={() => navigate("/projects")}
+      >
+        <ArrowLeft className="h-4 w-4 mr-2" />
+        Back to Projects
+      </Button>
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-6">
         <div>
           <div className="flex items-center space-x-3">
@@ -506,6 +527,49 @@ export default function ProjectDetails() {
                 <CardTitle>Project Expenses</CardTitle>
                 <CardDescription>All expenses submitted for this project</CardDescription>
               </div>
+              <div className="relative rounded-md flex-1">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <Search className="h-4 w-4 text-gray-400" />
+                </div>
+                <Input
+                  type="text"
+                  placeholder="Search expenses"
+                  className="pl-10"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                />
+              </div>
+              <Select
+                value={statusFilter}
+                onValueChange={setStatusFilter}
+              >
+                <SelectTrigger className="w-full sm:w-[180px]">
+                  <SelectValue placeholder="Filter by status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Statuses</SelectItem>
+                  <SelectItem value="pending">Pending</SelectItem>
+                  <SelectItem value="approved">Approved</SelectItem>
+                  <SelectItem value="rejected">Rejected</SelectItem>
+                </SelectContent>
+              </Select>
+              <Select
+                value={categoryFilter}
+                onValueChange={setCategoryFilter}
+              >
+                <SelectTrigger className="w-full sm:w-[180px]">
+                  <SelectValue placeholder="Filter by category" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Categories</SelectItem>
+                  {/* Assuming you have a 'categories' array */}
+                  {categories.map(category => (
+                    <SelectItem key={category} value={category} className="capitalize">
+                      {category.charAt(0).toUpperCase() + category.slice(1)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
               {canAddExpenses && (
                 <Button 
                   onClick={() => navigate(`/projects/${projectId}/expenses/new`)}
@@ -521,7 +585,7 @@ export default function ProjectDetails() {
                   <div className="h-4 bg-gray-200 rounded w-full"></div>
                   <div className="h-4 bg-gray-200 rounded w-full"></div>
                 </div>
-              ) : expenses.length === 0 ? (
+              ) : filteredExpenses.length === 0 ? (
                 <div className="text-center py-8 text-gray-500">
                   No expenses have been submitted for this project yet.
                 </div>
@@ -540,7 +604,7 @@ export default function ProjectDetails() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {expenses.map((expense: Expense) => (
+                      {filteredExpenses.map((expense: Expense) => (
                         <TableRow key={expense.id}>
                           <TableCell>{expense.description}</TableCell>
                           <TableCell className="capitalize">{expense.category}</TableCell>

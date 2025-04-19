@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useLocation } from 'wouter';
-import { PageHeader } from '@/components/ui/page-header';
+import { useLocation, useParams } from 'wouter';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -9,13 +8,16 @@ import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/useAuth';
-import { CheckIcon, XIcon, ReceiptIcon, UserIcon, CalendarIcon, FileTextIcon, InfoIcon } from 'lucide-react';
+import { CheckIcon, XIcon, ReceiptIcon, FileTextIcon, InfoIcon, DollarSign, Tag, Calendar, MessageSquare, Edit, ArrowLeft } from 'lucide-react';
 import { Textarea } from '@/components/ui/textarea';
-import { format } from 'date-fns';
-import { ExpenseDetails } from '../../../shared/schema';
+import { Expense, Project, User } from '../../../shared/schema';
+import { Separator } from '@radix-ui/react-select';
+import { formatDate, formatStatus, getStatusColor } from '@/lib/utils';
 
-export default function ExpenseDetails({ id }: { id: string }) {
-  const [, setLocation] = useLocation();
+export default function ExpenseDetails() {
+  const { id } = useParams<{ id: string }>();
+  const expenseId = parseInt(id);
+  const [, navigate] = useLocation();
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const { user } = useAuth();
@@ -26,12 +28,40 @@ export default function ExpenseDetails({ id }: { id: string }) {
   const [reviewNotes, setReviewNotes] = useState('');
 
   // Fetch expense details
-  const { data: expenseDetails, isLoading } = useQuery<ExpenseDetails>({
-    queryKey: [`/api/expenses/detailed/${id}`],
+  const { data: expense, isLoading } = useQuery<Expense>({
+    queryKey: [`/api/expenses/${expenseId}`],
     queryFn: async () => { 
-      const response = await authenticatedFetch('GET', `/api/expenses/detailed/${id}`);
+      const response = await authenticatedFetch('GET', `/api/expenses/${expenseId}`);
       return await response.json();
     },
+    enabled: !!expenseId
+  });
+
+
+  // Wait until expense is loaded
+  const submittedById = expense?.submittedById;
+  const reviewedById = expense?.reviewedById;
+  const projectId = expense?.projectId;
+
+  // Fetch user details who submitted expense
+  const { data: submitter } = useQuery<User>({
+    queryKey: [`/api/users/${submittedById}`],
+    enabled: !!expense?.submittedById,
+    queryFn: () => authenticatedFetch('GET', `/api/users/${submittedById}`).then(res => res.json()),
+  });
+  
+  // Fetch user details who reviewed expense
+  const { data: reviewer } = useQuery<User>({
+    queryKey: [`/api/users/${reviewedById}`],
+    enabled: !!expense?.reviewedById,
+    queryFn: () => authenticatedFetch('GET', `/api/users/${reviewedById}`).then(res => res.json()),
+  });
+  
+  // Fetch the project details to which corresponding expense is related 
+  const { data: project,  isLoading: isProjectLoading  } = useQuery<Project>({
+    queryKey: [`/api/projects/${projectId}`],
+    enabled: !!expense?.projectId,
+    queryFn: () => authenticatedFetch('GET', `/api/projects/${projectId}`).then(res => res.json()),
   });
 
 
@@ -47,27 +77,15 @@ export default function ExpenseDetails({ id }: { id: string }) {
     }).format(amount);
   };
 
-  // Format date
-  const formatDate = (dateString: string) => {
-    return format(new Date(dateString), 'MMM d, yyyy h:mm a');
-  };
-
   // Go back to expenses list
   const handleBack = () => {
-    setLocation('/expenses');
-  };
-
-  // Go to project details
-  const handleViewProject = () => {
-    if (expenseDetails?.expense) {
-      setLocation(`/projects/${expenseDetails.expense.projectId}`);
-    }
+    navigate('/expenses');
   };
 
   // Approve expense mutation
   const approveExpense = useMutation({
     mutationFn: async () => {
-     const response = await authenticatedFetch('PATCH', `/api/expenses/${id}`, {
+     const response = await authenticatedFetch('PATCH', `/api/expenses/${expenseId}/status`, {
         body: JSON.stringify({
           status: 'approved',
           notes: reviewNotes
@@ -80,7 +98,8 @@ export default function ExpenseDetails({ id }: { id: string }) {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/expenses'] });
-      queryClient.invalidateQueries({ queryKey: [`/api/expenses/${id}`] });
+      queryClient.invalidateQueries({ queryKey: [`/api/expenses/${expenseId}`] });
+      setActiveTab("details");
       toast({
         title: 'Success',
         description: 'Expense approved successfully',
@@ -99,7 +118,7 @@ export default function ExpenseDetails({ id }: { id: string }) {
   // Reject expense mutation
   const rejectExpense = useMutation({
     mutationFn: async () => {
-      const response = await authenticatedFetch('PATCH', `/api/expenses/${id}`, {
+      const response = await authenticatedFetch('PATCH', `/api/expenses/${expenseId}/status`, {
         body: JSON.stringify({
           status: 'rejected',
           notes: reviewNotes
@@ -112,7 +131,8 @@ export default function ExpenseDetails({ id }: { id: string }) {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/expenses'] });
-      queryClient.invalidateQueries({ queryKey: [`/api/expenses/${id}`] });
+      queryClient.invalidateQueries({ queryKey: [`/api/expenses/${expenseId}`] });
+      setActiveTab("details");
       toast({
         title: 'Success',
         description: 'Expense rejected successfully',
@@ -142,6 +162,10 @@ export default function ExpenseDetails({ id }: { id: string }) {
     }
   };
 
+  const isAdmin = user && (user.role === "admin" || user.role === "manager");
+  const isOwner = user && expense && user.id === expense.submittedById;
+  const canEdit = (isOwner && expense?.status === "pending") || (isAdmin && expense?.status === "pending");
+
   if (isLoading) {
     return (
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -158,7 +182,7 @@ export default function ExpenseDetails({ id }: { id: string }) {
     );
   }
 
-  if (!expenseDetails) {
+  if (!expense) {
     return (
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <Card>
@@ -174,109 +198,196 @@ export default function ExpenseDetails({ id }: { id: string }) {
   }
 
   return (
-    <>
-      <PageHeader 
-        title="Expense Details"
-        actions={
-          <div className="flex space-x-2">
-            <Button variant="outline" onClick={handleBack}>
-              Back
-            </Button>
-            <Button onClick={handleViewProject}>
-              View Project
-            </Button>
+ 
+    <div className="py-6 px-4 sm:px-6 lg:px-8">
+      
+      <div className="mb-6">
+        <Button 
+          variant="ghost" 
+          className="mb-2"
+          onClick={() => navigate("/expenses")}
+        >
+          <ArrowLeft className="h-4 w-4 mr-2" />
+          Back to Expenses
+        </Button>
+        <div className="flex justify-between items-start">
+          <div>
+            <h1 className="text-2xl font-semibold text-gray-900">Expense Details</h1>
+            <p className="text-gray-500">
+              Submitted on {formatDate(expense.createdAt)}
+            </p>
           </div>
-        }
-      />
+          <div className="flex space-x-3">
+            {canEdit && (
+              <Button 
+                variant="outline"
+                onClick={() => navigate(`/expenses/${expenseId}/edit`)}
+              >
+                <Edit className="h-4 w-4 mr-2" />
+                Edit
+              </Button>
+            )}          
+          </div>
+        </div>
+      </div>
+      
 
       <div className="mt-8">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
-          <Tabs value={activeTab} onValueChange={setActiveTab}>
-            <TabsList className="mb-6">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:p-0">
+          <Tabs value={activeTab} onValueChange={setActiveTab}>   
+            
+          {canReviewExpense && expense.status === 'pending' && (
+            <TabsList className="mb-6 grid grid-cols-2 sm:grid-cols-2">
               <TabsTrigger value="details">Details</TabsTrigger>
-              {canReviewExpense && expenseDetails.expense.status === 'pending' && (
+              {expense?.status === 'pending' && (
                 <TabsTrigger value="review">Review</TabsTrigger>
               )}
             </TabsList>
+          )}
 
             <TabsContent value="details">
-              <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
-                <Card className="md:col-span-2">
-                  {expenseDetails && ( // Add this check
-                    <CardHeader>
-                      <CardTitle className="text-lg font-medium flex items-center justify-between">
-                        <span>{expenseDetails.expense.description}</span>
-                        <Badge className={`status-badge-${expenseDetails.expense.status}`}>
-                          {expenseDetails.expense.status.charAt(0).toUpperCase() + expenseDetails.expense.status.slice(1)}
-                        </Badge>
-                      </CardTitle>
-                    </CardHeader>
-                  )}
-                  <CardContent>
-                    <div className="space-y-6">
-                      <div>
-                        <h3 className="text-sm font-medium text-gray-500">Project</h3>
-                        <p className="mt-1 text-sm text-gray-900">{expenseDetails.project?.name}</p>
-                      </div>
-                      
-                      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                        <div>
-                          <h3 className="text-sm font-medium text-gray-500">Category</h3>
-                          <p className="mt-1 text-sm text-gray-900">{expenseDetails.expense?.category}</p>
-                        </div>
-                        <div>
-                          <h3 className="text-sm font-medium text-gray-500">Amount</h3>
-                          <p className="mt-1 text-lg font-semibold text-gray-900">{formatCurrency(parseFloat(String(expenseDetails.expense.amount)))}</p>
-                        </div>
-                      </div>
-
-                      {expenseDetails?.expense?.feedback && (
-                        <div>
-                          <h3 className="text-sm font-medium text-gray-500">Notes</h3>
-                          <p className="mt-1 text-sm text-gray-900">{expenseDetails.expense.feedback}</p>
-                        </div>
-                      )}
-                      
-                      {expenseDetails?.submitter && (
-                        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                          <div className="flex items-center">
-                            <UserIcon className="h-5 w-5 text-gray-400 mr-2" />
-                            <div>
-                              <h3 className="text-sm font-medium text-gray-500">Submitted By</h3>
-                              <p className="mt-1 text-sm text-gray-900">{expenseDetails.submitter.name}</p>
-                            </div>
-                          </div>
-                          <div className="flex items-center">
-                            <CalendarIcon className="h-5 w-5 text-gray-400 mr-2" />
-                            <div>
-                              <h3 className="text-sm font-medium text-gray-500">Submitted At</h3>
-                              <p className="mt-1 text-sm text-gray-900">{formatDate(expenseDetails.expense.createdAt.toString())}</p>
-                            </div>
-                          </div>
-                        </div>
-                      )}
-
-                      {expenseDetails?.reviewer && (
-                        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                          <div className="flex items-center">
-                            <UserIcon className="h-5 w-5 text-gray-400 mr-2" />
-                            <div>
-                              <h3 className="text-sm font-medium text-gray-500">Reviewed By</h3>
-                              <p className="mt-1 text-sm text-gray-900">{expenseDetails.reviewer.name || 'Unknown'}</p>
-                            </div>
-                          </div>                          
-                        </div>
-                      )}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              <div className="lg:col-span-1">
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Expense Information</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-6">
+                    <div>
+                      <h3 className="text-sm font-medium text-gray-500 mb-1">Description</h3>
+                      <p className="text-gray-900">{expense.description}</p>
                     </div>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div>
+                        <h3 className="text-sm font-medium text-gray-500 mb-1">Amount</h3>
+                        <div className="flex items-center text-xl font-semibold">
+                          <DollarSign className="h-5 w-5 text-gray-500 mr-1" />
+                          {formatCurrency(expense.amount)}
+                        </div>
+                      </div>
+                      
+                      <div>
+                        <h3 className="text-sm font-medium text-gray-500 mb-1">Category</h3>
+                        <div className="flex items-center">
+                          <Tag className="h-5 w-5 text-gray-500 mr-1" />
+                          <span className="capitalize">{expense.category}</span>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div>
+                        <h3 className="text-sm font-medium text-gray-500 mb-1">Status</h3>
+                        <Badge className={getStatusColor(expense.status)}>
+                          {formatStatus(expense.status)}
+                        </Badge>
+                      </div>
+                      
+                      <div>
+                        <h3 className="text-sm font-medium text-gray-500 mb-1">Submission Date</h3>
+                        <div className="flex items-center">
+                          <Calendar className="h-5 w-5 text-gray-500 mr-1" />
+                          {formatDate(expense.createdAt)}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      {submitter?.name && (
+                        <div>
+                          <h3 className="text-sm font-medium text-gray-500 mb-1">Submitted By</h3>
+                          <p className="text-gray-900">{submitter.name}</p>
+                        </div>
+                      )}
+                      
+                      {reviewer?.name && (
+                        <div>
+                          <h3 className="text-sm font-medium text-gray-500 mb-1">Reviewed By</h3>
+                          <p className="text-gray-900">{reviewer.name}</p>
+                        </div>
+                      )}
+                    </div>              
+                    
+                    {expense.feedback && (
+                      <div>
+                        <h3 className="text-sm font-medium text-gray-500 mb-2">Feedback</h3>
+                        <div className="border rounded-md p-4 bg-gray-50">
+                          <div className="flex items-start">
+                            <MessageSquare className="h-5 w-5 text-gray-500 mr-2 mt-0.5" />
+                            <p className="text-gray-700">{expense.feedback}</p>
+                          </div>
+                        </div>
+                      </div>
+                    )}
                   </CardContent>
                 </Card>
+              </div>
 
+              <div>
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Project Information</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    {isProjectLoading ? (
+                      <div className="animate-pulse space-y-3">
+                        <div className="h-4 bg-gray-200 rounded w-3/4"></div>
+                        <div className="h-4 bg-gray-200 rounded w-1/2"></div>
+                      </div>
+                    ) : project ? (
+                      <div className="space-y-4">
+                        <div>
+                          <h3 className="text-sm font-medium text-gray-500 mb-1">Project Name</h3>
+                          <a 
+                            href={`/projects/${project.id}`}
+                            className="text-primary-600 hover:text-primary-500 font-medium"
+                          >
+                            {project.name}
+                          </a>
+                        </div>
+                        
+                        <div>
+                          <h3 className="text-sm font-medium text-gray-500 mb-1">Project Status</h3>
+                          <Badge className={getStatusColor(project.status)}>
+                            {formatStatus(project.status)}
+                          </Badge>
+                        </div>
+                        
+                        <div>
+                          <h3 className="text-sm font-medium text-gray-500 mb-1">Project Budget</h3>
+                          <div className="font-medium">{formatCurrency(project.budget)}</div>
+                        </div>
+                        
+                        <div>
+                          <h3 className="text-sm font-medium text-gray-500 mb-1">Start Date</h3>
+                          <div className="text-gray-900">{formatDate(project.startDate)}</div>
+                        </div>
+                        
+                        <Separator className="my-4" />
+                        
+                        <Button
+                          variant="outline"
+                          className="w-full"
+                          onClick={() => navigate(`/projects/${project.id}`)}
+                        >
+                          View Project
+                        </Button>
+                      </div>
+                    ) : (
+                      <div className="text-gray-500">Project information not available</div>
+                    )}
+                  </CardContent>
+                </Card>         
+              </div>
+
+              <div>
                 <Card>
                   <CardHeader>
                     <CardTitle className="text-lg font-medium">Receipt</CardTitle>
                   </CardHeader>
                   <CardContent>
-                    {expenseDetails?.expense?.receiptUrl ? (
+                    {expense.receiptUrl ? (
                       <div className="flex flex-col items-center space-y-4">
                         <div className="w-full h-48 bg-gray-100 rounded-md flex items-center justify-center">
                           <ReceiptIcon className="h-16 w-16 text-gray-400" />
@@ -293,11 +404,12 @@ export default function ExpenseDetails({ id }: { id: string }) {
                       </div>
                     )}
                   </CardContent>
-                </Card>
+                </Card>     
               </div>
+            </div>
             </TabsContent>
 
-            {canReviewExpense && expenseDetails?.expense?.status === 'pending' && (
+            {canReviewExpense && expense.status === 'pending' && (
               <TabsContent value="review">
                 <Card>
                   <CardHeader>
@@ -363,6 +475,8 @@ export default function ExpenseDetails({ id }: { id: string }) {
           </Tabs>
         </div>
       </div>
-    </>
+        
+    </div>
+ 
   );
 }

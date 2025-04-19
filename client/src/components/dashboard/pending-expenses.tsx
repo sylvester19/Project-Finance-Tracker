@@ -165,23 +165,28 @@ export function PendingExpenses() {
                 </div>
                 <div className="text-sm font-medium text-gray-900">{formatCurrency(expense.amount)}</div>
               </div>
-              <div className="mt-4 flex justify-end space-x-3">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => handleRejectExpense(expense.id)}
-                  disabled={updateExpenseMutation.isPending}
-                >
-                  Reject
-                </Button>
-                <Button
-                  variant="default"
-                  size="sm"
-                  onClick={() => handleApproveExpense(expense.id)}
-                  disabled={updateExpenseMutation.isPending}
-                >
-                  Approve
-                </Button>
+              <div className="mt-4 flex justify-between space-x-3">
+                <Link href={`/expenses/${expense.id}`} className="self-center">
+                  <a className="text-sm text-primary-600 hover:underline inline-flex self-center">See details</a>
+                </Link>
+                <div className="flex space-x-3">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleRejectExpense(expense.id)}
+                    disabled={updateExpenseMutation.isPending}
+                  >
+                    Reject
+                  </Button>
+                  <Button
+                    variant="default"
+                    size="sm"
+                    onClick={() => handleApproveExpense(expense.id)}
+                    disabled={updateExpenseMutation.isPending}
+                  >
+                    Approve
+                  </Button>
+                </div>
               </div>
             </div>
           ))

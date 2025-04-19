@@ -2,15 +2,8 @@ import React, { createContext, useState, useContext, useEffect } from "react";
 import { jwtDecode } from "jwt-decode";
 import { User, UserRoleType } from "@shared/schema";
 import { useLocation } from "wouter";
+import { DecodedToken } from "utils/jwt";
 
-interface DecodedToken {
-  id: number;
-  username: string;
-  name: string;
-  role: UserRoleType;
-  exp: number; // Token expiration timestamp (in seconds since epoch)
-  iat: number; // (Optional) Issued at timestamp
-}
 
 interface AuthContextType {
   user: User | null;
@@ -140,8 +133,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const checkAuthStatus = async () => {
       setIsLoading(true);
       try {
-        const accessToken = getAccessToken();
-        if (accessToken && !isTokenExpired(accessToken)) {
+        let accessToken = getAccessToken();
+        if (!accessToken || isTokenExpired(accessToken)) {
+          console.log("Access token expired or invalid, attempting refresh...");
+          accessToken = await refreshAccessToken(); // 🧠 This is the key fix
+        }
+  
+        if (accessToken) {
           const decoded = jwtDecode<DecodedToken>(accessToken);
           setUser({
             id: decoded.id,
@@ -150,7 +148,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             role: decoded.role,
           });
         } else {
-          console.log("Access token expired or invalid.");
+          console.log("Unable to refresh token. User is not authenticated.");
         }
       } catch (error) {
         console.error("Auth check failed:", error);

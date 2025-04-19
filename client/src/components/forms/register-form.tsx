@@ -31,6 +31,8 @@ export function RegisterForm() {
   const { toast } = useToast();
   const [, navigate] = useLocation();
   const [isLoading, setIsLoading] = React.useState(false);
+  const [showPassword, setShowPassword] = React.useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = React.useState(false);
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -60,13 +62,14 @@ export function RegisterForm() {
         throw new Error(errorData.message || "Registration failed");
       }
       
+      navigate('/login');
+
       toast({
         title: "Account created",
         description: "Your account has been created successfully. You are now logged in.",
       });
       
-      // Since the server automatically logs in on register, we can redirect to home
-      navigate("/");
+      
     } catch (error) {
       toast({
         variant: "destructive",
@@ -132,12 +135,21 @@ export function RegisterForm() {
               <FormItem>
                 <FormLabel>Password</FormLabel>
                 <FormControl>
-                  <Input
-                    type="password"
-                    placeholder="Create a password"
-                    {...field}
-                    disabled={isLoading}
-                  />
+                  <div className="relative">
+                    <Input
+                      type={showPassword ? "text" : "password"}
+                      placeholder="Create a password"
+                      {...field}
+                      disabled={isLoading}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(prev => !prev)}
+                      className="absolute right-3 top-2 text-sm text-gray-500"
+                    >
+                      {showPassword ? "Hide" : "Show"}
+                    </button>
+                  </div>
                 </FormControl>
                 <FormDescription>
                   At least 6 characters
@@ -153,12 +165,21 @@ export function RegisterForm() {
               <FormItem>
                 <FormLabel>Confirm Password</FormLabel>
                 <FormControl>
-                  <Input
-                    type="password"
-                    placeholder="Confirm your password"
-                    {...field}
-                    disabled={isLoading}
-                  />
+                  <div className="relative">
+                    <Input
+                      type={showConfirmPassword ? "text" : "password"}
+                      placeholder="Confirm your password"
+                      {...field}
+                      disabled={isLoading}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowConfirmPassword(prev => !prev)}
+                      className="absolute right-3 top-2 text-sm text-gray-500"
+                    >
+                      {showConfirmPassword ? "Hide" : "Show"}
+                    </button>
+                  </div>
                 </FormControl>
                 <FormMessage />
               </FormItem>
@@ -181,8 +202,10 @@ export function RegisterForm() {
                     </SelectTrigger>
                   </FormControl>
                   <SelectContent>
-                    <SelectItem value={UserRole.EMPLOYEE}>Employee</SelectItem>
+                    <SelectItem value={UserRole.ADMIN}>Admin</SelectItem>
+                    <SelectItem value={UserRole.MANAGER}>Manager</SelectItem>
                     <SelectItem value={UserRole.SALESPERSON}>Salesperson</SelectItem>
+                    <SelectItem value={UserRole.EMPLOYEE}>Employee</SelectItem>
                   </SelectContent>
                 </Select>
                 <FormMessage />

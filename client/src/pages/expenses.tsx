@@ -25,6 +25,7 @@ import { formatCurrency, formatDate, getStatusColor, formatStatus } from "@/lib/
 import { useAuth } from "@/hooks/useAuth";
 import { Plus, Search, FileText } from "lucide-react";
 import { Expense, Project } from '../../../shared/schema';
+import { ExpenseCreateForm } from "@/components/forms/create-expense-form";
 
 
 export default function Expenses() {
@@ -33,6 +34,8 @@ export default function Expenses() {
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [categoryFilter, setCategoryFilter] = useState("all");
+  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+  
   const { authenticatedFetch } = useAuth();
       
 
@@ -81,7 +84,7 @@ export default function Expenses() {
   };
 
   // Check if user can create an expense
-  const canCreateExpense = user && user.role !== "admin";
+  const canCreateExpense = user
 
   // Get unique categories from expenses for filter
   const categories = [...new Set(expenses.map(e => e.category))];
@@ -92,13 +95,20 @@ export default function Expenses() {
         <h1 className="text-2xl font-semibold text-gray-900">Expenses</h1>
         <div className="mt-3 sm:mt-0">
           {canCreateExpense && (
-            <Button 
-              onClick={() => navigate("/expenses/new")}
-              className="w-full sm:w-auto"
-            >
-              <Plus className="h-4 w-4 mr-2" />
-              New Expense
-            </Button>
+            <>
+              <Button 
+                onClick={() => setIsCreateDialogOpen(true)}
+                className="w-full sm:w-auto"
+              >
+                <Plus className="h-4 w-4 mr-2" />
+                New Expense
+              </Button>
+
+              <ExpenseCreateForm
+                open={isCreateDialogOpen}
+                onOpenChange={setIsCreateDialogOpen} 
+              />            
+            </>
           )}
         </div>
       </div>

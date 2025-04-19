@@ -6,6 +6,7 @@ import { useQuery } from "@tanstack/react-query";
 import { FileText, PanelTop, BarChart3, DollarSign } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { Expense, Project, ProjectBudgetComparison } from "@shared/schema";
+import { useDateRange } from "@/context/DateRangeContext";
 
 
 export interface StatsCardProps {
@@ -68,12 +69,13 @@ export function StatsCard({
 
 export function StatsOverview() {
   const { authenticatedFetch } = useAuth();
+  const { dateRange } = useDateRange();
 
   // Fetch active projects count
   const projectsQuery = useQuery<Project[]>({ 
-    queryKey: ['/api/projects'],
+    queryKey: ['/api/projects', dateRange],
     queryFn: async () => {
-      const res = await authenticatedFetch("GET", "/api/projects");
+      const res = await authenticatedFetch("GET", `/api/projects?dateRange=${dateRange}`);
       return res.json();
     },
     staleTime: 60000
@@ -81,9 +83,9 @@ export function StatsOverview() {
   
   // Fetch pending expenses
   const expensesQuery = useQuery<Expense[]>({ 
-    queryKey: ['/api/expenses/status/pending'],
+    queryKey: ['/api/expenses/status/pending', dateRange],
     queryFn: async () => {
-      const res = await authenticatedFetch("GET", "/api/expenses/status/pending");
+      const res = await authenticatedFetch("GET", `/api/expenses/status/pending?dateRange=${dateRange}`);
       return res.json();
     },
     staleTime: 60000
@@ -91,9 +93,9 @@ export function StatsOverview() {
   
   // Get budget utilization from analytics
   const budgetQuery = useQuery<ProjectBudgetComparison[]>({ 
-    queryKey: ['/api/analytics/total-budget-vs-spent'],
+    queryKey: ['/api/analytics/total-budget-vs-spent', dateRange],
     queryFn: async () => {
-      const res = await authenticatedFetch("GET", "/api/analytics/total-budget-vs-spent");
+      const res = await authenticatedFetch("GET", `/api/analytics/total-budget-vs-spent?dateRange=${dateRange}`);
       return res.json();
     },
     staleTime: 60000
@@ -105,7 +107,7 @@ export function StatsOverview() {
   const pendingExpenses = expensesQuery.data?.length || 0;
   
   const totalBudget = budgetQuery.data?.reduce((sum, p) => sum + p.budget, 0) || 0;
-  
+ 
   const totalSpent = budgetQuery.data?.reduce((sum, p) => sum + p.spent, 0) || 0;
   
   const budgetUtilization = totalBudget > 0 
