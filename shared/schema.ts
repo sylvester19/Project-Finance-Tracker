@@ -23,19 +23,11 @@ export const ProjectStatus = {
 
 export type ProjectStatusType = typeof ProjectStatus[keyof typeof ProjectStatus];
 
-// Enum values for expense status
-export const ExpenseStatus = {
-  PENDING: "pending",
-  APPROVED: "approved",
-  REJECTED: "rejected",
-} as const;
-
-export type ExpenseStatusType = typeof ExpenseStatus[keyof typeof ExpenseStatus];
 
 // Session Token model
 export const sessionToken = pgTable("session_token", {
   id: serial("id").primaryKey(),
-  userId: integer("user_id").notNull(),
+  userId: integer("user_id").notNull().references(() => users.id),
   refreshToken: text("refresh_token").notNull().unique(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   expiresAt: timestamp("expires_at").notNull(),
@@ -55,8 +47,8 @@ export const clients = pgTable("clients", {
   id: serial("id").primaryKey(),
   name: text("name").notNull(),
   contactPerson: text("contact_person").notNull(),
-  contactEmail: text("contact_email"),
-  contactPhone: text("contact_phone"),
+  contactEmail: text("contact_email").notNull(),
+  contactPhone: text("contact_phone").notNull(),
   createdById: integer("created_by_id").notNull().references(() => users.id),
 });
 
@@ -91,7 +83,15 @@ export const ExpenseCategory = {
   OTHER: "other",
 } as const;
 
+// Enum values for expense status
+export const ExpenseStatus = {
+  PENDING: "pending",
+  APPROVED: "approved",
+  REJECTED: "rejected",
+} as const;
+
 export type ExpenseCategoryType = typeof ExpenseCategory[keyof typeof ExpenseCategory];
+export type ExpenseStatusType = typeof ExpenseStatus[keyof typeof ExpenseStatus];
 
 // Expense model
 export const expenses = pgTable("expenses", {
@@ -178,7 +178,7 @@ export const insertClientSchema = createInsertSchema(clients).pick({
   contactPerson: true,
   contactEmail: true,
   contactPhone: true,
-  createdById: true,
+  createdById: true
 });
 
 export const insertProjectSchema = createInsertSchema(projects).pick({
@@ -279,12 +279,6 @@ export type NotificationRead = typeof notificationReads.$inferSelect;
 export type LoginCredentials = z.infer<typeof userLoginSchema>;
 
 // Custom type 
-export type ExpenseDetails = {
-  expense: Expense;
-  submitter?: User | null; 
-  reviewer?: User | null;   
-  project?: Project | null;
-};
 
 export type ProjectBudgetComparison = {
   project: string;
