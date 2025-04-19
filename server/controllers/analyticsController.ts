@@ -6,7 +6,8 @@ import { analyticsService } from "../services/analyticsService";
 export const analyticsController = {
   async getTotalBudgetVsSpent(req: Request, res: Response) {
     try {
-      const data = await analyticsService.getTotalBudgetVsSpent();
+      const dateRange = req.query.dateRange as string | undefined;
+      const data = await analyticsService.getTotalBudgetVsSpent(dateRange);
       res.json(data);
     } catch (err: any) {
       console.error(err);

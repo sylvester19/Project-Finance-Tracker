@@ -2,18 +2,20 @@ import {
   SessionToken, sessionToken, User, InsertUser, users,
   Client, InsertClient, clients,
   Project, InsertProject, projects,
-  Expense, ExpenseDetails, InsertExpense, expenses,
+  Expense, InsertExpense, expenses,
   ActivityLog, InsertActivityLog, activityLogs,
   ExpenseStatus, UserRole, UserRoleType, ExpenseCategoryType,
   activityLogTargets,
   notificationReads,
   ActivityAction,
+  projectAssignments,
 } from "@shared/schema";
-import { eq, sql } from 'drizzle-orm';
+import { eq, sql, gte, and, inArray } from 'drizzle-orm';
 import type { ProjectStatusType, ExpenseStatusType, InternalUser, SpendingCategory, MonthlySpending, ProjectBudgetComparison, InsertActivityLogTarget, ActivityLogDetails, ExpenseApprovalRate, EmployeeSpending } from "@shared/schema";
 import session from "express-session";
 import createMemoryStore from "memorystore";
 import { comparePasswords } from "../utils/session"
+import { getFromDate } from "../utils/getFromDate"
 
 // Interface for all storage operations
 export interface IStorage {
@@ -24,8 +26,8 @@ export interface IStorage {
   toSafeUser(user: InternalUser): User;
 
   // Session Token Operation
-  saveRefreshToken(userId: number, refreshToken: string, expiresAt: Date): Promise<void>;
-  getRefreshToken(refreshToken: string): Promise<SessionToken | undefined>; 
+  getSessionTokenByUserId(userId: number): Promise<SessionToken | undefined>;
+  updateRefreshToken(userId: number, refreshToken: string, expiresAt: Date): Promise<void>;
   deleteRefreshToken(refreshToken: string): Promise<void>;
 
   // User operations
@@ -50,7 +52,6 @@ export interface IStorage {
   
   // Expense operations
   getExpense(id: number): Promise<Expense | undefined>;
-  getDetailedExpense(id: number): Promise<ExpenseDetails | undefined>;
   getExpenses(): Promise<Expense[]>;
   getExpensesByProject(projectId: number): Promise<Expense[]>;
   getExpensesByUser(userId: number): Promise<Expense[]>;
@@ -100,7 +101,15 @@ export class MemStorage implements IStorage {
     const { password, ...User } = user;
     return User;
   }
-
+  private findSessionByUserId(userId: number): SessionToken | undefined {
+    for (const token of this.sessionTokens.values()) {
+      if (token.userId === userId) {
+        return token;
+      }
+    }
+    return undefined;
+  }
+  
   constructor() {
     this.sessionTokens = new Map();
     this.users = new Map();
@@ -123,7 +132,7 @@ export class MemStorage implements IStorage {
     // Seed the database with initial data
     this.seedData();
   }
-
+  
  
 
   private async seedData() {
@@ -347,24 +356,33 @@ export class MemStorage implements IStorage {
     });
   }
 
-  // Session Token Operation
-  async saveRefreshToken(userId: number, refreshToken: string, expiresAt: Date): Promise<void> {
-    const newSessionToken: SessionToken = {
-      id: this.generateId(), // Use UUID for unique IDs
-      userId: userId,
-      refreshToken: refreshToken,
-      createdAt: new Date(), // Or use a more appropriate creation time
-      expiresAt: expiresAt,
+  async getSessionTokenByUserId(userId: number): Promise<SessionToken | undefined> {
+    return this.findSessionByUserId(userId);
+  }
+
+  // 🔄 Update OR insert session
+  async updateRefreshToken(userId: number, refreshToken: string, expiresAt: Date): Promise<void> {
+    const existing = this.findSessionByUserId(userId);
+
+    if (existing) {
+      // Delete the old session using its refreshToken as key
+      this.sessionTokens.delete(existing.refreshToken);
+    }
+
+    const newSession: SessionToken = {
+      id: this.generateId(), // or any ID generator you use
+      userId,
+      refreshToken,
+      createdAt: new Date(),
+      expiresAt,
     };
-    this.sessionTokens.set(refreshToken, newSessionToken); // Key by refreshToken
+
+    this.sessionTokens.set(refreshToken, newSession);
   }
 
-  async getRefreshToken(refreshToken: string): Promise<SessionToken | undefined> {
-    return this.sessionTokens.get(refreshToken); // Key by refreshToken
-  }
-
+  // Delete by refreshToken
   async deleteRefreshToken(refreshToken: string): Promise<void> {
-    this.sessionTokens.delete(refreshToken); // Key by refreshToken
+    this.sessionTokens.delete(refreshToken);
   }
 
 
@@ -426,7 +444,7 @@ export class MemStorage implements IStorage {
 
   async createClient(insertClient: InsertClient): Promise<Client> {
     const id = this.currentClientId++;
-    const client: Client = { ...insertClient, id, contactEmail: insertClient.contactEmail ?? null, contactPhone: insertClient.contactPhone ?? null };
+    const client: Client = { ...insertClient, id, contactEmail: insertClient.contactEmail, contactPhone: insertClient.contactPhone};
     this.clients.set(id, client);
     return client;
   }
@@ -475,40 +493,6 @@ export class MemStorage implements IStorage {
   // Expense operations
   async getExpense(id: number): Promise<Expense | undefined> {
     return this.expenses.get(id);
-  }
-
-  async getDetailedExpense(id: number): Promise<ExpenseDetails | undefined> {
-    const expense = this.expenses.get(id);
-    if (!expense) {
-      return undefined;
-    }
-
-    const submitter = Array.from(this.users.values()).find(user => user.id === expense.submittedById);
-    const reviewer = expense.reviewedById ? Array.from(this.users.values()).find(user => user.id === expense.reviewedById) : undefined;
-    const project = Array.from(this.projects.values()).find(project => project.id === expense.projectId);
-
-    const safeSubmitter: User | undefined = submitter ? {
-      id: submitter.id,
-      name: submitter.name,
-      username: submitter.username,
-      role: submitter.role,
-    } : undefined;
-
-    const safeReviewer: User | undefined = reviewer ? {
-      id: reviewer.id,
-      name: reviewer.name,
-      username: reviewer.username,
-      role: reviewer.role,
-    } : undefined;
-
-    const expenseDetails: ExpenseDetails = {
-      expense: expense,
-      submitter: safeSubmitter,
-      reviewer: safeReviewer,
-      project: project || undefined,
-    };
-
-    return expenseDetails;
   }
 
   async getExpenses(): Promise<Expense[]> {
@@ -745,20 +729,39 @@ export class DatabaseStorage implements IStorage {
   }
   
   // Session Token Operation
-  async saveRefreshToken(userId: number, refreshToken: string, expiresAt: Date): Promise<void> {
+  async getSessionTokenByUserId(userId: number): Promise<SessionToken | undefined> {
     const { db } = await import('./db');
-    await db.insert(sessionToken).values({  // Use sessionToken table
-      userId,
-      refreshToken, // Use refreshToken field name
-      expiresAt,
-    });
+    const [token] = await db
+      .select()
+      .from(sessionToken)
+      .where(eq(sessionToken.userId, userId));
+    return token;
   }
-
-  async getRefreshToken(refreshToken: string): Promise<SessionToken | undefined> {
+  
+  async updateRefreshToken(userId: number, newToken: string, expiresAt: Date): Promise<void> {
     const { db } = await import('./db');
-    const [token] = await db.select().from(sessionToken).where(eq(sessionToken.refreshToken, refreshToken)); // Use sessionToken table and refreshToken field
-    return token; // Return the entire sessionToken object or undefined
+  
+    const [existingSession] = await db
+      .select()
+      .from(sessionToken)
+      .where(eq(sessionToken.userId, userId));
+  
+    if (existingSession) {
+      // Update the existing session
+      await db
+        .update(sessionToken)
+        .set({ refreshToken: newToken, expiresAt })
+        .where(eq(sessionToken.userId, userId));
+    } else {
+      // Insert a new session
+      await db.insert(sessionToken).values({
+        userId,
+        refreshToken: newToken,
+        expiresAt,
+      });
+    }
   }
+  
 
   async deleteRefreshToken(refreshToken: string): Promise<void> {
     const { db } = await import('./db');
@@ -772,6 +775,11 @@ export class DatabaseStorage implements IStorage {
     return user;
   }
 
+  async getAllUsers(): Promise<User[]>{
+    const { db } = await import('./db');
+    return db.select().from(users);
+  }
+
   async getUserByUsername(username: string): Promise<User | undefined> {
     const { db } = await import('./db');
     const [user] = await db.select().from(users).where(eq(users.username, username));
@@ -779,12 +787,21 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createUser(insertUser: InsertUser): Promise<User> {
-    const { db } = await import('./db');
-    const [user] = await db.insert(users).values({...insertUser, role: insertUser.role as UserRoleType}).returning();
+    console.log("📥 Inserting user into DB:", insertUser);
+    const { db } = await import('./db');  
+    const [user] = await db.insert(users).values({
+      ...insertUser,
+      role: insertUser.role as UserRoleType,
+    }).returning({
+      id: users.id,
+      name: users.name,
+      username: users.username,
+      role: users.role,
+    });
     return user;
   }
 
-  async deleteUser(userId: number): Promise<void> {
+  async deleteUser(userId: number): Promise<void> { 
     const { db } = await import('./db');
     
     await db.delete(users).where(eq(users.id, userId));
@@ -826,7 +843,7 @@ export class DatabaseStorage implements IStorage {
 
   async createClient(client: InsertClient): Promise<Client> {
     const { db } = await import('./db');
-    const [newClient] = await db.insert(clients).values(client).returning();
+    const [newClient] = await db.insert(clients).values(client).returning();  
     return newClient;
   }
 
@@ -837,9 +854,19 @@ export class DatabaseStorage implements IStorage {
     return project;
   }
 
-  async getProjects(): Promise<Project[]> {
+  async getProjects(dateRange?: string): Promise<Project[]> {
     const { db } = await import('./db');
-    return db.select().from(projects);
+
+    const fromDate = getFromDate(dateRange);
+
+    if (!fromDate) {
+      return db.select().from(projects);
+    }
+
+    return db
+      .select()
+      .from(projects)
+      .where(gte(projects.startDate, fromDate));
   }
 
   async getProjectsByUser(userId: number, userRole: UserRoleType): Promise<Project[]> {
@@ -850,70 +877,49 @@ export class DatabaseStorage implements IStorage {
     return db.select().from(projects).where(eq(projects.createdById, userId));
   }
 
+  
   async getProjectsByClient(clientId: number): Promise<Project[]> {
     const { db } = await import('./db');
     return db.select().from(projects).where(eq(projects.clientId, clientId));
   }
-
+  
   async createProject(project: InsertProject): Promise<Project> {
     const { db } = await import('./db');
     const [newProject] = await db.insert(projects).values({...project, status: project.status as ProjectStatusType}).returning();
     return newProject;
   }
-
+  
   async updateProjectStatus(id: number, status: string): Promise<Project> {
     const { db } = await import('./db');
     const [updatedProject] = await db
-      .update(projects)
-      .set({ status: status as ProjectStatusType })
-      .where(eq(projects.id, id))
-      .returning();
+    .update(projects)
+    .set({ status: status as ProjectStatusType })
+    .where(eq(projects.id, id))
+    .returning();
     return updatedProject;
   }
+  
+  
+  
+  // Project Assigning Operation  
+  async getProjectsAssignedToUser(userId: number): Promise<Project[]> {
+    const { db } = await import('./db');
+    const assignedProjectIds = await db.select({ projectId: projectAssignments.projectId }).from(projectAssignments).where(eq(projectAssignments.userId, userId));
+
+    if (assignedProjectIds.length === 0) {
+      return []; 
+    }
+    const projectIds = assignedProjectIds.map(p => p.projectId);
+    return db.select().from(projects).where(inArray(projects.id, projectIds));
+  }
+
+
 
   // Expense operations
   async getExpense(id: number): Promise<Expense | undefined> {
     const { db } = await import('./db');
     const [expense] = await db.select().from(expenses).where(eq(expenses.id, id));
     return expense;
-  }
-
-  async getDetailedExpense(id: number): Promise<ExpenseDetails | undefined> {
-    const { db } = await import('./db');
-
-    try {
-      const [expenseWithDetails] = await db.select({
-        expense: expenses,
-        submitter: {
-          id: users.id,
-          name: users.name,
-          username: users.username,
-          role: users.role,
-        },
-        reviewer: {
-          id: users.id,
-          name: users.name,
-          username: users.username,
-          role: users.role,
-        }, 
-        project: projects, 
-      })
-      .from(expenses)
-      .leftJoin(users, eq(expenses.submittedById, users.id))
-      .leftJoin(users, eq(expenses.reviewedById, users.id))
-      .leftJoin(projects, eq(expenses.projectId, projects.id))
-      .where(eq(expenses.id, Number(id)))
-      .limit(1);
-
-      if (!expenseWithDetails) {
-        return undefined;
-      }
-
-      return expenseWithDetails as ExpenseDetails;
-    } catch (error) {
-      console.error('Error fetching detailed expense from database:', error);
-      return undefined; // Or throw, depending on your error handling
-    }
   }
   
   async getExpenses(): Promise<Expense[]> {
@@ -931,9 +937,17 @@ export class DatabaseStorage implements IStorage {
     return db.select().from(expenses).where(eq(expenses.submittedById, userId));
   }
 
-  async getExpensesByStatus(status: ExpenseStatusType): Promise<Expense[]> {
-      const { db } = await import('./db');
-      return db.select().from(expenses).where(eq(expenses.status, status));
+  async getExpensesByStatus(status: ExpenseStatusType, dateRange?:string): Promise<Expense[]> {
+    const { db } = await import('./db');
+    const fromDate = getFromDate(dateRange);
+
+    const statusCondition = eq(expenses.status, status);
+    const dateCondition = fromDate ? gte(expenses.createdAt, fromDate) : undefined;
+
+    return db
+      .select()
+      .from(expenses)
+      .where(dateCondition ? and(statusCondition, dateCondition) : statusCondition);
   }
 
   async createExpense(expense: InsertExpense): Promise<Expense> {
@@ -1014,26 +1028,39 @@ export class DatabaseStorage implements IStorage {
   
 
   // Analytics operations
-  async getTotalBudgetVsSpent(): Promise<ProjectBudgetComparison[]> {
+  async getTotalBudgetVsSpent(dateRange?: string): Promise<ProjectBudgetComparison[]> {
     const { db } = await import('./db');
-    const allProjects = await db.select().from(projects);
-    const result: { project: string; budget: number; spent: number }[] = [];
+    const fromDate = getFromDate(dateRange);
+    const allProjects = fromDate
+      ? await db.select().from(projects).where(gte(projects.startDate, fromDate))
+      : await db.select().from(projects);
     
+      const result: ProjectBudgetComparison[] = [];
+  
     for (const project of allProjects) {
+      const conditions = [
+        eq(expenses.projectId, project.id),
+        eq(expenses.status, ExpenseStatus.APPROVED)
+      ];
+  
+      if (fromDate) {
+        conditions.push(gte(expenses.createdAt, fromDate));
+      }
+  
       const projectExpenses = await db
         .select()
         .from(expenses)
-        .where(sql`${expenses.projectId} = ${project.id} AND ${expenses.status} = ${ExpenseStatus.APPROVED}`);
-      
+        .where(and(...conditions));
+  
       const spent = projectExpenses.reduce((total, expense) => total + expense.amount, 0);
-      
+  
       result.push({
         project: project.name,
         budget: project.budget,
         spent
       });
     }
-    
+  
     return result;
   }
 

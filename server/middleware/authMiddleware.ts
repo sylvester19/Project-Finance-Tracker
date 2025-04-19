@@ -2,17 +2,9 @@ import { Request, Response, NextFunction } from "express";
 import { UserRoleType } from "../../shared/schema";
 import jwt from "jsonwebtoken";
 import dotenv from "dotenv";
+import { DecodedToken } from "utils/jwt";
 
 dotenv.config();
-
-interface DecodedToken {
-  id: number;
-  username: string;
-  name: string;
-  role: UserRoleType;
-  exp: number; // Token expiration timestamp (in seconds since epoch)
-  iat: number; // (Optional) Issued at timestamp
-}
 
 
 export interface AuthenticatedRequest extends Request {

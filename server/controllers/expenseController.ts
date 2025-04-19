@@ -21,22 +21,6 @@ export const expenseController = {
     }
   },
 
-  async getDetailedExpense(req: Request, res: Response) {
-    try {
-      const id = parseInt(req.params.id, 10);
-      const expense = await expenseService.getDetailedExpense(id);
-
-      if (!expense) {
-        return res.status(404).json({ message: "Expense not found" });
-      }
-
-      res.json(expense);
-    } catch (err: any) {
-      console.error(err);
-      res.status(500).json({ message: "Failed to get detailed expense" });
-    }
-  },
-
   async getExpenses(req: Request, res: Response) {
     try {
       const expenses = await expenseService.getExpenses();
@@ -72,7 +56,8 @@ export const expenseController = {
   async getExpensesByStatus(req: Request, res: Response) {
     try {
       const status = req.params.status as ExpenseStatusType;
-      const expenses = await expenseService.getExpensesByStatus(status);
+      const dateRange = req.query.dateRange as string | undefined;
+      const expenses = await expenseService.getExpensesByStatus(status, dateRange);
       res.json(expenses);
     } catch (err: any) {
       console.error(err);

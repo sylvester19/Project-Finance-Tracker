@@ -2,6 +2,7 @@
 
 import { Request, Response } from "express";
 import { clientService } from "../services/clientService";
+import { insertClientSchema } from "@shared/schema";
 
 export const clientController = {
   async getClient(req: Request, res: Response) {
@@ -43,7 +44,9 @@ export const clientController = {
 
   async createClient(req: Request, res: Response) {
     try {
-      const newClient = await clientService.createClient(req.body);
+ 
+      const parsed = insertClientSchema.parse(req.body); 
+      const newClient = await clientService.createClient(parsed);
       res.status(201).json(newClient);
     } catch (err: any) {
       console.error(err);

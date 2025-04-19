@@ -21,6 +21,16 @@ export const userController = {
     }
   },
 
+  async getAllUsers (req: Request, res: Response) {
+    try {
+      const users = await userService.getAllUsers();
+      res.json(users);
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({ message: "Failed to fetch users" });
+    }
+  },
+
   async createUser(req: Request, res: Response) {
     try {
       const newUser = await userService.createUser(req.body);

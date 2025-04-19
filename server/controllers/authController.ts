@@ -7,7 +7,7 @@ export const authController = {
   async register(req: Request, res: Response) {
     try {
       const user = await authService.register(req.body);
-      req.session.userId = user.id;
+     
       res.status(201).json(user);
     } catch (err: any) {
       res.status(400).json({ message: err.message });
@@ -58,12 +58,4 @@ export const authController = {
     res.status(200).json({ message: "Logged out" });
   },
 
-  async session(req: Request, res: Response) {
-    try {
-      const user = await authService.getSession(req.cookies.refreshToken);
-      res.json(user);
-    } catch (err: any) {
-      res.status(403).json({ message: err.message });
-    }
-  }
 };

@@ -8,6 +8,10 @@ export const userService = {
     return storage.getUser(id);
   },
 
+  async getAllUsers(): Promise<User[]> {
+    return storage.getAllUsers();
+  },
+
   async createUser(user: InsertUser): Promise<User> {
     // Add any business logic or validation here before creating the user
     return storage.createUser(user);

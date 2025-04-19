@@ -4,8 +4,8 @@ import { EmployeeSpending, ExpenseApprovalRate, MonthlySpending, ProjectBudgetCo
 import { storage } from "../storage";
 
 export const analyticsService = {
-  async getTotalBudgetVsSpent(): Promise<ProjectBudgetComparison[]> {
-    return storage.getTotalBudgetVsSpent();
+  async getTotalBudgetVsSpent(dateRange?: string): Promise<ProjectBudgetComparison[]> {
+    return storage.getTotalBudgetVsSpent(dateRange);
   },
 
   async getMonthlySpendingTrends(): Promise<MonthlySpending[]> {

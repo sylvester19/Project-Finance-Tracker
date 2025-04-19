@@ -23,7 +23,8 @@ export const projectController = {
 
   async getProjects(req: Request, res: Response) {
     try {
-      const projects = await projectService.getProjects();
+      const dateRange = req.query.dateRange as string | undefined;
+      const projects = await projectService.getProjects(dateRange);
       res.json(projects);
     } catch (err: any) {
       console.error(err);
@@ -73,6 +74,23 @@ export const projectController = {
     } catch (err: any) {
       console.error(err);
       res.status(400).json({ message: err.message });
+    }
+  },
+
+  // Project Assignments table 
+  async getAssignedProjects(req: Request, res: Response) {
+    try {
+      const userId = parseInt(req.params.userId, 10);
+      if (isNaN(userId)) {
+        return res.status(400).json({ message: "Invalid user ID" });
+      }
+
+      const projects = await projectService.getAssignedProjects(userId);
+
+      res.json(projects);
+    } catch (err: any) {
+      console.error("Error fetching assigned projects:", err);
+      res.status(500).json({ message: "Failed to fetch assigned projects" });
     }
   },
 };

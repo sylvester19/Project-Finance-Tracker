@@ -4,14 +4,15 @@ import { storage } from "../storage";
 import { Project, InsertProject, UserRoleType } from "@shared/schema";
 
 export const projectService = {
+   // Projects table 
   async getProject(id: number): Promise<Project | undefined> {
     return storage.getProject(id);
   },
 
-  async getProjects(): Promise<Project[]> {
-    return storage.getProjects();
+  async getProjects(dateRange?: string): Promise<Project[]> {
+    return storage.getProjects(dateRange);
   },
-
+  
   async getProjectsByUser(userId: number, userRole: UserRoleType): Promise<Project[]> {
     return storage.getProjectsByUser(userId, userRole);
   },
@@ -27,5 +28,10 @@ export const projectService = {
 
   async updateProjectStatus(id: number, status: string): Promise<Project> {
     return storage.updateProjectStatus(id, status);
+  },
+
+  // Project Assignments table 
+  async getAssignedProjects(userId: number): Promise<Project[]> {
+    return storage.getProjectsAssignedToUser(userId);
   },
 };
