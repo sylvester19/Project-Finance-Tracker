@@ -34,6 +34,8 @@ export function calculatePercentage(value: number, total: number): number {
 }
 
 export function getStatusColor(status: string): string {
+  if (!status) return 'text-gray-800 bg-gray-100'; // fallback
+
   switch (status.toLowerCase()) {
     case 'in_progress':
     case 'approved':
@@ -50,10 +52,13 @@ export function getStatusColor(status: string): string {
   }
 }
 
-export function formatStatus(status: string): string {
-  return status.split('_').map(word => 
-    word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()
-  ).join(' ');
+export function formatStatus(status?: string): string {
+  if (!status) return "Unknown";
+
+  return status
+    .split('_')
+    .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+    .join(' ');
 }
 
 export function getInitials(name: string): string {
