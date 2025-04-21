@@ -6,6 +6,7 @@ import {
 } from "../../utils/jwt";
 import { z } from "zod";
 import { userLoginSchema, userRegisterSchema } from "@shared/schema";
+import { hashPassword } from "../../utils/session";
 
 const REFRESH_TOKEN_EXPIRY_DAYS = parseInt(process.env.REFRESH_TOKEN_EXPIRY_DAYS || "7", 10);
 
@@ -26,8 +27,13 @@ export const authService = {
     console.log(`✅ No duplicate found, creating user: ${data.username}`);
     // Assuming password is hashed before inserting
     // const hashedPassword = await hashPassword(data.password);
+    const hashedPassword = await hashPassword(data.password);
+
     const { confirmPassword, ...sanitized } = data;
-    return storage.createUser(sanitized);
+    return storage.createUser({
+      ...sanitized,
+      password: hashedPassword
+    });
   },
 
   async login(data: LoginInput) {
